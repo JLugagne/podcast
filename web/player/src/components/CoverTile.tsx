@@ -16,14 +16,7 @@ export interface CoverTileProps {
 export function CoverTile({ title, accentColor, src, size = "md" }: CoverTileProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const showImage = Boolean(src) && failedSrc !== src;
-  const classes = [
-    "cover-tile",
-    size === "sm" ? "cover-tile-sm" : "",
-    size === "lg" ? "cover-tile-lg" : "",
-    size === "xl" ? "cover-tile-xl" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const classes = `cover-tile cover-tile-${size}`;
 
   return (
     <div

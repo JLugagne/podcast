@@ -994,7 +994,7 @@
   }
 
   .player-controls {
-    justify-content: flex-start;
+    justify-content: center;
     gap: var(--space-4);
   }
 }

@@ -110,6 +110,22 @@ test("main admin journey", async ({ page }) => {
     );
   });
 
+  await test.step("series list shows the new series card", async () => {
+    await page.getByRole("link", { name: "Series", exact: true }).first().click();
+    const card = page.getByRole("link", { name: new RegExp(seriesTitle) }).first();
+    await expect(card).toBeVisible();
+    await expect(card.locator(".cover-tile img")).toBeVisible();
+
+    await shots.capture(
+      "series-list-with-card",
+      "Series list with a series",
+      "Series list showing the new series card with its cover, author and episode counts.",
+    );
+
+    await card.click();
+    await expect(page.getByRole("heading", { level: 1, name: seriesTitle })).toBeVisible();
+  });
+
   await test.step("create an episode", async () => {
     await page.getByRole("link", { name: "New episode" }).first().click();
     await expect(page.getByRole("heading", { level: 1, name: "New episode" })).toBeVisible();

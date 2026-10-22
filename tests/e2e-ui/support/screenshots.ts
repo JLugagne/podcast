@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { CDPSession, Page } from "@playwright/test";
+import { assertCleanLayout } from "./layout";
 
 /** Screenshot folder of one spec; each spec owns and cleans its own folder. */
 export type ScreenshotArea = "admin" | "listener";
@@ -93,6 +94,9 @@ export class ScreenshotRecorder {
     }
 
     this.shots.push({ step, file, title, caption });
+
+    // Checked after the capture so a failing step still leaves its screenshot.
+    await assertCleanLayout(this.page, `${file} — ${title}`);
   }
 
   /** Writes <area>/manifest.json with the final status of the run. */
