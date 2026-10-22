@@ -1,0 +1,25 @@
+name: podcast-dev
+
+# Development database only: run `make dev-db`, then `make run` and
+# `npm run dev` in web/admin on the host.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-podcast}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-podcast}
+      POSTGRES_DB: ${POSTGRES_DB:-podcast}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # PostgreSQL 18 keeps PGDATA under /var/lib/postgresql/<major>/docker.
+      - pgdata-dev:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+volumes:
+  pgdata-dev:

@@ -1,0 +1,21 @@
+# Copy to configs/podcast.yaml and point PODCAST_CONFIG at it, or pass the
+# path to the --config flag. PODCAST_ environment variables override these
+# values, using a double underscore for nesting (PODCAST_DATABASE__URL).
+http:
+  addr: ":8080"
+  # Base URL used to build absolute feed links (no trailing slash).
+  public_url: "http://localhost:8080"
+
+database:
+  url: "postgres://podcast:podcast@localhost:5432/podcast?sslmode=disable"
+
+storage:
+  dir: "./data/blobs"
+
+upload:
+  max_audio_bytes: 2147483648 # 2 GiB
+  max_image_bytes: 10485760 # 10 MiB
+
+log:
+  format: text # text or json
+  level: info # debug, info, warn, error

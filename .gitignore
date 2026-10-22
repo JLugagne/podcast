@@ -1,0 +1,21 @@
+/bin/
+/data/
+/.env
+/.tasks/
+
+web/admin/node_modules/
+web/admin/dist/*
+!web/admin/dist/index.html
+
+web/player/node_modules/
+web/player/dist/*
+!web/player/dist/index.html
+
+tests/e2e-ui/node_modules/
+tests/e2e-ui/screenshots/
+tests/e2e-ui/test-results/
+tests/e2e-ui/playwright-report/
+tests/e2e-ui/fixtures/generated/
+
+# Local Claude Code configuration
+/.claude/

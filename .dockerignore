@@ -1,0 +1,12 @@
+.git
+.gitignore
+.tasks
+.claude
+.env
+.env.*
+bin
+data
+web/admin/node_modules
+web/admin/dist
+web/player/node_modules
+web/player/dist

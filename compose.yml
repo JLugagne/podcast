@@ -1,0 +1,61 @@
+name: podcast
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-podcast}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-podcast}
+      POSTGRES_DB: ${POSTGRES_DB:-podcast}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # PostgreSQL 18 keeps PGDATA under /var/lib/postgresql/<major>/docker.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  migrate:
+    build: .
+    image: ${PODCAST_IMAGE:-podcast:local}
+    command: ["migrate"]
+    environment:
+      PODCAST_DATABASE__URL: postgres://${POSTGRES_USER:-podcast}:${POSTGRES_PASSWORD:-podcast}@postgres:5432/${POSTGRES_DB:-podcast}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build: .
+    image: ${PODCAST_IMAGE:-podcast:local}
+    ports:
+      - "${PODCAST_PORT:-8080}:8080"
+    environment:
+      PODCAST_HTTP__ADDR: ":8080"
+      PODCAST_DATABASE__URL: postgres://${POSTGRES_USER:-podcast}:${POSTGRES_PASSWORD:-podcast}@postgres:5432/${POSTGRES_DB:-podcast}?sslmode=disable
+      PODCAST_STORAGE__DIR: /data/blobs
+      PODCAST_LOG__FORMAT: ${PODCAST_LOG_FORMAT:-text}
+      PODCAST_LOG__LEVEL: ${PODCAST_LOG_LEVEL:-info}
+    volumes:
+      - blobs:/data/blobs
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  adminer:
+    image: adminer:6
+    profiles: ["tools"]
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  blobs:

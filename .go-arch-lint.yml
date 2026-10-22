@@ -1,0 +1,117 @@
+# go-arch-lint v3 configuration: one component block per bounded context.
+version: 3
+workdir: .
+allow:
+  depOnAnyVendor: true
+  deepScan: false
+  ignoreNotFoundComponents: true
+
+excludeFiles:
+  - "^.*_test\\.go$"
+
+components:
+  catalog_domain:
+    in: "internal/catalog/domain/**"
+  catalog_app:
+    in: "internal/catalog/app/**"
+  catalog_inbound:
+    in: "internal/catalog/inbound/**"
+  catalog_outbound:
+    in: "internal/catalog/outbound/**"
+  catalog_composition:
+    in: "internal/catalog"
+  listening_domain:
+    in: "internal/listening/domain/**"
+  listening_app:
+    in: "internal/listening/app/**"
+  listening_inbound:
+    in: "internal/listening/inbound/**"
+  listening_outbound:
+    in: "internal/listening/outbound/**"
+  listening_bridge:
+    in: "internal/listening/bridge/**"
+  listening_composition:
+    in: "internal/listening"
+  shared_pkg:
+    in: "internal/pkg/**"
+  cmd:
+    in: "cmd/**"
+  entrypoint:
+    in: "."
+  public_pkg:
+    in: "pkg/**"
+  web_admin:
+    in: "web/admin/**"
+  web_player:
+    in: "web/player/**"
+
+deps:
+  catalog_domain:
+    mayDependOn:
+      - catalog_domain
+  catalog_app:
+    mayDependOn:
+      - catalog_domain
+      - shared_pkg
+  catalog_inbound:
+    mayDependOn:
+      - catalog_domain
+      - catalog_inbound
+      - shared_pkg
+      - public_pkg
+  catalog_outbound:
+    mayDependOn:
+      - catalog_domain
+      - catalog_outbound
+  catalog_composition:
+    mayDependOn:
+      - catalog_domain
+      - catalog_app
+      - catalog_inbound
+      - catalog_outbound
+      - shared_pkg
+      - public_pkg
+  listening_domain:
+    mayDependOn:
+      - listening_domain
+  listening_app:
+    mayDependOn:
+      - listening_domain
+      - shared_pkg
+  listening_inbound:
+    mayDependOn:
+      - listening_domain
+      - listening_inbound
+      - shared_pkg
+      - public_pkg
+  listening_outbound:
+    mayDependOn:
+      - listening_domain
+      - listening_outbound
+  listening_bridge:
+    mayDependOn:
+      - listening_domain
+      - catalog_domain
+  listening_composition:
+    mayDependOn:
+      - listening_domain
+      - listening_app
+      - listening_inbound
+      - listening_outbound
+      - listening_bridge
+      - catalog_domain
+      - shared_pkg
+      - public_pkg
+  shared_pkg:
+    mayDependOn:
+      - shared_pkg
+  entrypoint:
+    mayDependOn:
+      - cmd
+  cmd:
+    mayDependOn:
+      - catalog_composition
+      - listening_composition
+      - shared_pkg
+      - web_admin
+      - web_player

@@ -1,0 +1,44 @@
+:root {
+  /* Color tokens */
+  --bg: #111318;
+  --surface: #1b1e26;
+  --surface-2: #252935;
+  --border: #3a3f4d;
+  --text: #f4f1ea;
+  --muted: #a3a8b5;
+  --accent: #f2a541;
+  --accent-strong: #ffc36b;
+  --accent-contrast: #1a1205;
+  --danger: #ff7b7b;
+  --danger-bg: #341a1f;
+  --success: #6ee7a8;
+  --success-bg: #16302a;
+
+  /* Typography */
+  --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, monospace;
+
+  /* Shape and depth */
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 6px 18px rgba(0, 0, 0, 0.22);
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  /* Layout */
+  --content-max-width: 720px;
+  --page-gutter: 1.25rem;
+  --mini-player-height: 86px;
+
+  color-scheme: dark;
+}

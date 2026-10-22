@@ -1,0 +1,104 @@
+import type { Episode, Progress } from "../api/types";
+import { formatDuration, formatMinutesLeft, pluralize } from "../lib/format";
+import { Icon } from "./Icon";
+import { IconButton } from "./IconButton";
+import { Menu } from "./Menu";
+
+export interface EpisodeRowProps {
+  episode: Episode;
+  progress?: Progress;
+  isCurrent: boolean;
+  playing: boolean;
+  onTogglePlay: () => void;
+  onOpenPlayer: () => void;
+  onMarkPlayed: () => void;
+  onMarkUnplayed: () => void;
+}
+
+function stateLabel(progress: Progress | undefined, duration: number): string {
+  if (progress?.completed) return "Played";
+  if (progress && progress.position_seconds > 0) {
+    return formatMinutesLeft(Math.max(0, duration - progress.position_seconds));
+  }
+  return "New";
+}
+
+/** One row of the published episode list of a series. */
+export function EpisodeRow({
+  episode,
+  progress,
+  isCurrent,
+  playing,
+  onTogglePlay,
+  onOpenPlayer,
+  onMarkPlayed,
+  onMarkUnplayed,
+}: EpisodeRowProps) {
+  const duration = episode.audio?.duration_seconds ?? 0;
+  const positionSeconds = progress?.position_seconds ?? 0;
+  const percent = duration > 0 ? Math.min(100, (positionSeconds / duration) * 100) : 0;
+  const label = `${playing ? "Pause" : "Play"} episode ${episode.number}: ${episode.title}`;
+
+  return (
+    <li className={["episode-row", isCurrent ? "is-current" : ""].filter(Boolean).join(" ")}>
+      <span className="episode-row-number" aria-hidden="true">
+        {episode.number}
+      </span>
+      <IconButton
+        label={label}
+        icon={playing ? "pause" : "play"}
+        variant={isCurrent ? "primary" : "surface"}
+        size="md"
+        onClick={onTogglePlay}
+      />
+      <div className="episode-row-body">
+        <h3 className="episode-row-title">
+          <button type="button" className="episode-row-title-button" onClick={onOpenPlayer}>
+            {episode.title}
+          </button>
+        </h3>
+        <p className="episode-row-meta">
+          <span>{formatDuration(duration)}</span>
+          <span aria-hidden="true">·</span>
+          <span>{pluralize(episode.chapters.length, "chapter")}</span>
+          <span aria-hidden="true">·</span>
+          <span>{stateLabel(progress, duration)}</span>
+        </p>
+        <div className="progress-thin" aria-hidden="true">
+          <span className="progress-thin-fill" style={{ width: `${percent}%` }} />
+        </div>
+      </div>
+      <Menu
+        label={`More actions for episode ${episode.number}`}
+        trigger={<Icon name="more" size={20} />}
+      >
+        {(close) => (
+          <>
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              onClick={() => {
+                onMarkPlayed();
+                close();
+              }}
+            >
+              Mark as played
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              onClick={() => {
+                onMarkUnplayed();
+                close();
+              }}
+            >
+              Mark as unplayed
+            </button>
+          </>
+        )}
+      </Menu>
+    </li>
+  );
+}
