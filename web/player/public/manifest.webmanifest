@@ -1,7 +1,7 @@
 {
   "name": "Podcasts",
   "short_name": "Podcasts",
-  "description": "Add podcasts from their RSS feed and listen, even offline.",
+  "description": "Add podcasts from their RSS feed and listen, even offline. Nothing is sent to anyone.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
