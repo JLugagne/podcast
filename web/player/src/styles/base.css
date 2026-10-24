@@ -138,6 +138,14 @@ select {
   margin-bottom: var(--space-5);
 }
 
+.library-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .section {
   margin-top: var(--space-6);
 }

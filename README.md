@@ -5,6 +5,9 @@ It is a static site published on GitHub Pages: there is no server and no databas
 
 - **Add a podcast** by pasting the URL of its RSS feed. The feed is parsed in the
   browser and the subscription (show, episodes) is saved in `localStorage`.
+- **Share a library**: "Share library" copies a link that lists every feed
+  (`?feed=<url>&feed=<url>`). Opening it subscribes to all of them at once and
+  skips the feeds already in the library.
 - **Listening progress** (position, played/unplayed, continue listening) is saved
   in `localStorage` too.
 - **Offline**: an episode can be downloaded from its `…` menu ("Download for
@@ -58,6 +61,7 @@ build writes `404.html` (a copy of `index.html`) so deep links resolve, and
 ```
 web/player/src/lib/feed.ts        RSS parsing
 web/player/src/lib/library.ts     subscriptions in localStorage, feed fetching
+web/player/src/lib/subscriptionLinks.ts  shared links that add several feeds
 web/player/src/lib/downloads.ts   offline audio (Cache API)
 web/player/public/                manifest, service worker, icons
 ```

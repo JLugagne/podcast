@@ -1,5 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { addSubscription, refreshSubscription, removeSubscription } from "../lib/library";
+import {
+  addSubscription,
+  importSubscriptions,
+  refreshSubscription,
+  removeSubscription,
+} from "../lib/library";
 import { queryKeys } from "./keys";
 
 function useInvalidateCatalog() {
@@ -12,6 +17,12 @@ function useInvalidateCatalog() {
 export function useAddPodcast() {
   const invalidate = useInvalidateCatalog();
   return useMutation({ mutationFn: addSubscription, onSuccess: invalidate });
+}
+
+/** Adds every feed of a shared link, skipping the ones already subscribed. */
+export function useImportSubscriptions() {
+  const invalidate = useInvalidateCatalog();
+  return useMutation({ mutationFn: importSubscriptions, onSuccess: invalidate });
 }
 
 export function useRefreshPodcast() {

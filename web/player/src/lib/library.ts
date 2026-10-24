@@ -1,3 +1,4 @@
+import { errorMessage } from "../api/errors";
 import { FeedError, parseFeed, type StoredSeries } from "./feed";
 import { readStorage, writeStorage } from "./storage";
 
@@ -85,6 +86,70 @@ export async function addSubscription(rawUrl: string): Promise<StoredSeries> {
     throw new FeedError("Could not save the library (storage is full or unavailable).");
   }
   return series;
+}
+
+export interface ImportOutcome {
+  /** Feeds that were downloaded and added to the library. */
+  added: StoredSeries[];
+  /** Feed URLs skipped because they were already subscribed. */
+  skipped: string[];
+  /** Feed URLs that could not be added, with the reason. */
+  failed: { feed_url: string; message: string }[];
+}
+
+/**
+ * Subscribes to every feed of a shared subscription link. Feeds already in the
+ * library are skipped, and one failing feed does not prevent the others from
+ * being added.
+ */
+export async function importSubscriptions(rawUrls: string[]): Promise<ImportOutcome> {
+  const list = listSubscriptions();
+  const subscribed = new Set(list.map((item) => item.feed_url));
+  const outcome: ImportOutcome = { added: [], skipped: [], failed: [] };
+  const pending: string[] = [];
+
+  for (const rawUrl of rawUrls) {
+    let feedUrl: string;
+    try {
+      feedUrl = normalizeUrl(rawUrl);
+    } catch (error) {
+      outcome.failed.push({ feed_url: rawUrl, message: errorMessage(error) });
+      continue;
+    }
+    if (subscribed.has(feedUrl)) {
+      if (!outcome.skipped.includes(feedUrl)) outcome.skipped.push(feedUrl);
+    } else if (!pending.includes(feedUrl)) {
+      pending.push(feedUrl);
+    }
+  }
+
+  const fetched = await Promise.all(
+    pending.map(async (feedUrl) => {
+      try {
+        return { series: parseFeed(await fetchFeedText(feedUrl), feedUrl), feedUrl, error: null };
+      } catch (error) {
+        return { series: null, feedUrl, error };
+      }
+    }),
+  );
+
+  for (const item of fetched) {
+    if (item.series) {
+      list.push(item.series);
+      outcome.added.push(item.series);
+    } else {
+      outcome.failed.push({ feed_url: item.feedUrl, message: errorMessage(item.error) });
+    }
+  }
+
+  if (outcome.added.length > 0) {
+    try {
+      saveSubscriptions(list);
+    } catch {
+      throw new FeedError("Could not save the library (storage is full or unavailable).");
+    }
+  }
+  return outcome;
 }
 
 export async function refreshSubscription(slug: string): Promise<StoredSeries> {

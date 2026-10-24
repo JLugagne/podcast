@@ -94,6 +94,16 @@ test("listener journey", async ({ page, context }) => {
     );
   });
 
+  await test.step("open a shared link for a podcast already in the library", async () => {
+    await page.goto(`/?feed=${encodeURIComponent(FEED_URL)}`);
+
+    await expect(page.getByText("1 podcast already in your library")).toBeVisible();
+    await expect(page.getByRole("link", { name: new RegExp(seriesTitle) })).toBeVisible();
+    // The feed list is dropped from the address bar once it has been imported.
+    await expect(page).toHaveURL(new RegExp("/$"));
+    expect(await readLibrary(page)).toHaveLength(1);
+  });
+
   await test.step("keep the podcast after a reload", async () => {
     await page.reload();
     await expect(page.getByRole("link", { name: new RegExp(seriesTitle) })).toBeVisible();

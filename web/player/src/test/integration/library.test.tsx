@@ -113,6 +113,77 @@ describe("library", () => {
 
     expect(await screen.findByText("Nothing to listen to yet")).toBeInTheDocument();
   });
+
+  it("subscribes to every feed of a shared link", async () => {
+    server.use(
+      http.get("https://feeds.example/one.xml", () => rss("Show One")),
+      http.get("https://feeds.example/two.xml", () => rss("Show Two")),
+    );
+
+    renderApp(
+      "/?feed=https%3A%2F%2Ffeeds.example%2Fone.xml&feed=https%3A%2F%2Ffeeds.example%2Ftwo.xml",
+    );
+
+    expect(await screen.findByRole("link", { name: /Show One/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Show Two/ })).toBeInTheDocument();
+    expect(await screen.findByText("2 podcasts added")).toBeInTheDocument();
+    expect(window.localStorage.getItem("podcast.player.library")).toContain("Show Two");
+  });
+
+  it("does not subscribe again to feeds already in the library", async () => {
+    const series = seedSeries({ slug: "alpha-show", title: "Alpha Show" });
+    seedEpisode(series.slug, { id: "episode-1" });
+    const refetch = vi.fn(() => rss("Alpha Show"));
+    server.use(
+      http.get("https://feeds.test/alpha-show.xml", refetch),
+      http.get("https://feeds.example/two.xml", () => rss("Show Two")),
+    );
+
+    renderApp(
+      "/?feed=https%3A%2F%2Ffeeds.test%2Falpha-show.xml&feed=https%3A%2F%2Ffeeds.example%2Ftwo.xml",
+    );
+
+    expect(
+      await screen.findByText("1 podcast added · 1 podcast already in your library"),
+    ).toBeInTheDocument();
+    expect(refetch).not.toHaveBeenCalled();
+    const stored = JSON.parse(window.localStorage.getItem("podcast.player.library") ?? "[]");
+    expect(stored).toHaveLength(2);
+  });
+
+  it("adds the working feeds when one feed of the link fails", async () => {
+    server.use(
+      http.get("https://feeds.example/good.xml", () => rss("Good Show")),
+      http.get("https://feeds.example/bad.xml", () => HttpResponse.text("<html></html>")),
+    );
+
+    renderApp(
+      "/?feed=https%3A%2F%2Ffeeds.example%2Fbad.xml&feed=https%3A%2F%2Ffeeds.example%2Fgood.xml",
+    );
+
+    expect(await screen.findByRole("link", { name: /Good Show/ })).toBeInTheDocument();
+    expect(
+      await screen.findByText("1 podcast added · 1 podcast could not be added"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/bad\.xml: This XML document is not a podcast RSS feed\./),
+    ).toBeInTheDocument();
+  });
+
+  it("copies a link that subscribes to every podcast in the library", async () => {
+    const series = seedSeries({ slug: "alpha-show", title: "Alpha Show" });
+    seedEpisode(series.slug, { id: "episode-1" });
+    const { user } = renderApp("/");
+
+    const writeText = vi.spyOn(navigator.clipboard, "writeText");
+    await user.click(await screen.findByRole("button", { name: "Share library" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(writeText).toHaveBeenCalledWith(
+      "http://localhost:3000/?feed=https%3A%2F%2Ffeeds.test%2Falpha-show.xml",
+    );
+    expect(await screen.findByRole("button", { name: "Link copied" })).toBeInTheDocument();
+  });
 });
 
 function rss(title: string): Response {

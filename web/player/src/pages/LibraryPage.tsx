@@ -5,8 +5,10 @@ import type { ContinueItem, Progress, Series } from "../api/types";
 import { ChapterBar } from "../components/ChapterBar";
 import { CoverTile } from "../components/CoverTile";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { FeedLinkImport } from "../components/FeedLinkImport";
 import { Icon } from "../components/Icon";
 import { LoadingBlock } from "../components/LoadingBlock";
+import { ShareLibraryButton } from "../components/ShareLibraryButton";
 import { useCatalog, useEpisode } from "../hooks/catalog";
 import { useAddPodcast } from "../hooks/library";
 import { progressByEpisode, useContinueListening, useProgressList } from "../hooks/listening";
@@ -203,9 +205,16 @@ export function LibraryPage() {
   return (
     <div className="page">
       <header className="library-header">
-        <h1 className="page-title">Listen</h1>
-        <p className="page-subtitle">Your podcasts, saved on this device.</p>
+        <div className="library-header-row">
+          <div>
+            <h1 className="page-title">Listen</h1>
+            <p className="page-subtitle">Your podcasts, saved on this device.</p>
+          </div>
+          {series.length > 0 ? <ShareLibraryButton /> : null}
+        </div>
       </header>
+
+      <FeedLinkImport />
 
       <AddPodcastForm />
 

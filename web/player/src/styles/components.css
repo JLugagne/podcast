@@ -1047,3 +1047,21 @@
   font-size: 0.8125rem;
   min-height: 0;
 }
+
+/* Sharing the library as a subscription link */
+.share-library {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.share-library-link {
+  font-size: 0.8rem;
+}
+
+.import-failures {
+  margin: 4px 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
