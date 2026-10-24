@@ -1,129 +1,76 @@
-import { API_BASE, ApiError, parseErrorResponse } from "./errors";
-import type {
-  ContinueResponse,
-  Episode,
-  EpisodeListResponse,
-  EpisodeStatus,
-  Progress,
-  ProgressListResponse,
-  Series,
-  SeriesListResponse,
-} from "./types";
+import { DataError } from "./errors";
+import type { Catalog, ChapterDTO, EpisodeDetail } from "./types";
 
-export { ApiError, errorMessage, isAbortError, isApiError, isNotFound } from "./errors";
+export { DataError, errorMessage } from "./errors";
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+/** The base path Vite was built with ("/" or "/<repo>/"). */
+const BASE = import.meta.env.BASE_URL;
+
+interface RawChapter {
+  startTime: number;
+  endTime?: number | null;
+  title: string;
+  url?: string | null;
+  img?: string | null;
+  toc?: boolean;
+}
+
+interface RawEpisodeDetail extends Omit<EpisodeDetail, "chapters"> {
+  chapters: RawChapter[];
+}
+
+export function catalogURL(): string {
+  return `${BASE}data/index.json`;
+}
+
+export function episodeURL(id: string): string {
+  const [series, slug] = id.split("/");
+  if (!series || !slug) throw new DataError(`Invalid episode id ${JSON.stringify(id)}.`);
+  return `${BASE}data/episodes/${encodeURIComponent(series)}/${encodeURIComponent(slug)}.json`;
+}
+
+/** Resolves an audio URL: absolute URLs are kept, relative ones use the site base. */
+export function resolveAudioURL(raw: string): string {
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `${BASE}${raw.replace(/^\/+/, "")}`;
+}
+
+export async function getCatalog(): Promise<Catalog> {
+  return fetchJSON<Catalog>(catalogURL());
+}
+
+export async function getEpisode(id: string): Promise<EpisodeDetail> {
+  const raw = await fetchJSON<RawEpisodeDetail>(episodeURL(id));
+  return {
+    ...raw,
+    chapters: raw.chapters.map(toChapter),
+  };
+}
+
+async function fetchJSON<T>(url: string): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE}${path}`, {
-      ...init,
-      headers: {
-        Accept: "application/json",
-        ...(init.body === undefined ? {} : { "Content-Type": "application/json" }),
-        ...(init.headers as Record<string, string> | undefined),
-      },
-    });
+    response = await fetch(url, { headers: { Accept: "application/json" } });
   } catch {
-    throw new ApiError(
-      0,
-      "NETWORK_ERROR",
-      "Could not reach the server. Check that the API is running.",
-    );
+    throw new DataError("Could not reach the site. Check your connection.");
   }
-
-  if (!response.ok) throw await parseErrorResponse(response);
-  if (response.status === 204) return undefined as T;
-
-  const text = await response.text();
-  if (text.length === 0) return undefined as T;
+  if (!response.ok) {
+    throw new DataError(`The site returned an unexpected response (${response.status}).`);
+  }
   try {
-    return JSON.parse(text) as T;
+    return (await response.json()) as T;
   } catch {
-    throw new ApiError(
-      response.status,
-      "BAD_RESPONSE",
-      "The server returned an unexpected response.",
-    );
+    throw new DataError("The site returned an unexpected response.");
   }
 }
 
-function episodePath(id: string): string {
-  return `/episodes/${encodeURIComponent(id)}`;
-}
-
-function progressPath(id: string): string {
-  return `/listening/progress/${encodeURIComponent(id)}`;
-}
-
-function progressBody(positionSeconds: number, completed?: boolean): string {
-  return JSON.stringify(
-    completed === undefined
-      ? { position_seconds: positionSeconds }
-      : { position_seconds: positionSeconds, completed },
-  );
-}
-
-export const api = {
-  listSeries(): Promise<SeriesListResponse> {
-    return request<SeriesListResponse>("/series");
-  },
-
-  getSeries(id: string): Promise<Series> {
-    return request<Series>(`/series/${encodeURIComponent(id)}`);
-  },
-
-  listEpisodes(seriesId: string, status?: EpisodeStatus): Promise<EpisodeListResponse> {
-    const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
-    return request<EpisodeListResponse>(
-      `/series/${encodeURIComponent(seriesId)}/episodes${suffix}`,
-    );
-  },
-
-  getEpisode(id: string): Promise<Episode> {
-    return request<Episode>(episodePath(id));
-  },
-
-  listProgress(): Promise<ProgressListResponse> {
-    return request<ProgressListResponse>("/listening/progress");
-  },
-
-  continueListening(limit = 5): Promise<ContinueResponse> {
-    return request<ContinueResponse>(`/listening/continue?limit=${limit}`);
-  },
-
-  recordProgress(episodeId: string, positionSeconds: number): Promise<Progress> {
-    return request<Progress>(progressPath(episodeId), {
-      method: "PUT",
-      body: progressBody(positionSeconds),
-    });
-  },
-
-  markPlayed(episodeId: string): Promise<Progress> {
-    return request<Progress>(`${progressPath(episodeId)}/played`, { method: "POST" });
-  },
-
-  markUnplayed(episodeId: string): Promise<void> {
-    return request<void>(progressPath(episodeId), { method: "DELETE" });
-  },
-};
-
-/**
- * Saves the last known position when the page is being unloaded. `keepalive`
- * lets the browser finish the request after the document is gone.
- */
-export function saveProgressOnUnload(episodeId: string, positionSeconds: number): void {
-  if (!(positionSeconds > 0)) return;
-  try {
-    void fetch(`${API_BASE}${progressPath(episodeId)}`, {
-      method: "PUT",
-      keepalive: true,
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: progressBody(positionSeconds),
-    }).catch(() => undefined);
-  } catch {
-    // Nothing sensible to do while the document is unloading.
-  }
+function toChapter(raw: RawChapter): ChapterDTO {
+  return {
+    start_seconds: Number(raw.startTime),
+    end_seconds: raw.endTime ?? null,
+    title: raw.title,
+    url: raw.url ?? null,
+    image_url: raw.img ?? null,
+    toc: raw.toc ?? true,
+  };
 }

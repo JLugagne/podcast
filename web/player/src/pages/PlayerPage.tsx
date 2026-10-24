@@ -9,7 +9,7 @@ import { Icon } from "../components/Icon";
 import { IconButton } from "../components/IconButton";
 import { SleepTimerMenu } from "../components/SleepTimerMenu";
 import { SpeedMenu } from "../components/SpeedMenu";
-import { usePublishedEpisodes } from "../hooks/catalog";
+import { useCatalog } from "../hooks/catalog";
 import { progressByEpisode, useProgressList } from "../hooks/listening";
 import { formatDuration } from "../lib/format";
 import { isEditableTarget, isInteractiveTarget } from "../lib/keyboard";
@@ -54,7 +54,7 @@ export function PlayerPage() {
   const { toggle, skip, seekTo, previousChapter, nextChapter, setAutoPlayNext, start } = playback;
   const navigate = useNavigate();
   const location = useLocation();
-  const episodesQuery = usePublishedEpisodes(episode?.series_id);
+  const catalogQuery = useCatalog();
   const progressQuery = useProgressList();
   const progress = progressByEpisode(progressQuery.data);
 
@@ -94,12 +94,16 @@ export function PlayerPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [episode, toggle, skip, previousChapter, nextChapter]);
 
+  const seriesData = useMemo(() => {
+    if (!series) return null;
+    return catalogQuery.data?.series.find((item) => item.slug === series.slug) ?? null;
+  }, [catalogQuery.data, series]);
+
   const nextEpisode = useMemo<Episode | null>(() => {
-    if (!episode) return null;
-    const list = episodesQuery.data?.episodes ?? [];
-    const index = list.findIndex((candidate) => candidate.id === episode.id);
-    return index >= 0 ? (list[index + 1] ?? null) : null;
-  }, [episode, episodesQuery.data]);
+    if (!episode || !seriesData) return null;
+    const index = seriesData.episodes.findIndex((candidate) => candidate.id === episode.id);
+    return index >= 0 ? (seriesData.episodes[index + 1] ?? null) : null;
+  }, [episode, seriesData]);
 
   if (!episode || !series) return <Navigate to="/" replace />;
 
@@ -140,7 +144,7 @@ export function PlayerPage() {
           />
 
           <div className="player-heading">
-            <Link to={`/series/${episode.series_id}`} className="player-series-link">
+            <Link to={`/series/${series.slug}`} className="player-series-link">
               {series.title}
             </Link>
             <h1 className="player-episode-title">{episode.title}</h1>
@@ -239,9 +243,7 @@ export function PlayerPage() {
               >
                 <span className="up-next-kicker">Episode {nextEpisode.number}</span>
                 <span className="up-next-title">{nextEpisode.title}</span>
-                <span className="up-next-meta">
-                  {formatDuration(nextEpisode.audio?.duration_seconds ?? 0)}
-                </span>
+                <span className="up-next-meta">{formatDuration(nextEpisode.duration_seconds)}</span>
               </button>
             ) : (
               <p className="muted text-small">This is the latest episode of the series.</p>

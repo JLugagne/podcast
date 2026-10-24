@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8080";
+const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:4173";
 
 export default defineConfig({
   testDir: "./specs",
@@ -19,15 +19,16 @@ export default defineConfig({
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
   },
-  projects: [
-    {
-      name: "desktop",
-      testMatch: /main-flow\.spec\.ts/,
-      use: {
-        browserName: "chromium",
-        viewport: { width: 1440, height: 900 },
+  webServer: process.env.E2E_BASE_URL
+    ? undefined
+    : {
+        command: "npm run preview",
+        cwd: "../../web/player",
+        url: "http://localhost:4173",
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
       },
-    },
+  projects: [
     {
       name: "mobile",
       testMatch: /listener\.spec\.ts/,
@@ -38,10 +39,7 @@ export default defineConfig({
         isMobile: true,
         hasTouch: true,
         launchOptions: {
-          args: [
-            "--autoplay-policy=no-user-gesture-required",
-            "--disable-dev-shm-usage",
-          ],
+          args: ["--autoplay-policy=no-user-gesture-required", "--disable-dev-shm-usage"],
         },
       },
     },

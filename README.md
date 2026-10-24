@@ -1,149 +1,123 @@
 # Podcast
 
-A self-hosted podcast service for chaptered shows:
+A static, chaptered podcast site published on GitHub Pages.
 
-- a **listener app** (`/`): library, continue listening, series pages and a
-  player with a chapter-segmented progress bar, mini player, playback speed,
-  sleep timer, lock-screen controls (Media Session) and keyboard shortcuts;
-- an **admin app** (`/admin/`): create series and episodes, upload covers and
-  audio, import Podcasting 2.0 JSON chapters, publish;
-- **RSS feeds** (`/feeds/<slug>.xml`) with `podcast:chapters`, so any podcast
-  app can subscribe;
-- a Go API (`/api/v1`), PostgreSQL for metadata and blob storage on disk.
+- **Content lives in git** under `content/`: one JSON per series and one JSON per
+  episode. An episode JSON carries its MP3 URL and its chapters.
+- **A listener app** (`web/player/`, Vite + React) reads the generated JSON and
+  plays the audio. Listening progress (position, played/unplayed, continue
+  listening) is stored in the browser's `localStorage`, so it survives reloads
+  and sessions on that device.
+- **A build script** (`web/player/scripts/content.mjs`) validates the content,
+  writes `data/index.json` plus one `data/episodes/<series>/<episode>.json` per
+  episode, copies relative audio files, and writes the `404.html` SPA fallback.
+- **Audio is hosted outside the site** (Cloudflare R2 behind a Worker, or any
+  HTTPS origin), referenced by absolute URL. There is no server, no database
+  and no RSS feed.
 
 ## Quick start
 
 ```sh
-cp .env.example .env
-docker compose up --build
+make site
+cd web/player && npm run preview   # http://localhost:4173
 ```
 
-Open <http://localhost:8080/admin/> to create a series and publish episodes,
-then listen at <http://localhost:8080/>. The `migrate` service applies the
-database migrations before the app starts. Set `PODCAST_HTTP__PUBLIC_URL`
-when the service is reached through another address: feeds use it to build
-absolute links.
+`make site` installs the player dependencies, runs the Vite build and generates
+the site data into `web/player/dist`.
 
-To browse the database, start the optional Adminer container:
-
-```sh
-docker compose --profile tools up -d
-# http://localhost:8081 — system: PostgreSQL, server: postgres,
-# user/password/database: podcast
-```
-
-## Development
-
-Start only PostgreSQL, then run the API and the Vite dev server on the host:
-
-```sh
-make dev-db
-make run
-
-cd web/admin
-npm install
-npm run dev
-```
-
-The Vite dev server proxies `/api` to <http://localhost:8080>.
-
-Useful targets:
-
-| Target | Description |
-|---|---|
-| `make build` | Build `bin/podcast` (the admin UI is not rebuilt) |
-| `make web` | Install and build the admin UI into `web/admin/dist` |
-| `make run` | Run the API from source |
-| `make migrate` | Apply the database migrations and exit |
-| `make test` | Run every Go test with the race detector (needs Docker) |
-| `make test-short` | Run the Go unit tests only (no Docker, a few seconds) |
-| `make test-int` | Run the Postgres-backed tests (adapters + e2e API) |
-| `make web-test` | Run the admin and listener UI tests (Vitest + MSW) |
-| `make e2e-ui` | Start the compose stack and run the Playwright journeys (admin desktop, listener mobile) |
-| `make lint` | Run `go vet`, `golangci-lint` (pinned, via `go run`) and go-arch-lint |
-| `make arch-lint` | Check the go-arch-lint boundaries |
-| `make up` / `make down` | Start / stop the full compose stack |
-| `make dev-db` | Start only the development PostgreSQL |
-| `make tidy` | Synchronise `go.mod` and `go.sum` |
-
-## Configuration
-
-Configuration is read from built-in defaults, an optional YAML file
-(`configs/podcast.example.yaml`) and `PODCAST_` environment variables. A double
-underscore nests keys, so `PODCAST_DATABASE__URL` sets `database.url`.
-
-| Key | Default | Notes |
-|---|---|---|
-| `http.addr` | `:8080` | Listen address |
-| `http.public_url` | `http://localhost:8080` | Absolute base URL used in feed links (no trailing slash) |
-| `database.url` | — | Required PostgreSQL DSN |
-| `storage.dir` | `./data/blobs` | Blob storage directory |
-| `upload.max_audio_bytes` | `2147483648` | 2 GiB |
-| `upload.max_image_bytes` | `10485760` | 10 MiB |
-| `log.format` | `text` | `text` or `json` |
-| `log.level` | `info` | `debug`, `info`, `warn`, `error` |
-
-## Layout
+## Content format
 
 ```
-cmd/podcast/          cobra commands: serve, migrate
-internal/pkg/         shared kernel: config, logger, httpjson, httpserver, postgres, spa
-internal/catalog/     catalog bounded context: series, episodes, chapters, RSS feeds
-internal/listening/   listening bounded context: progress, continue listening (bridged to catalog)
-pkg/catalog/http/v1/  public JSON contract
-web/admin/            Vite + React admin UI, embedded into the binary
-web/player/           Vite + React listener app, embedded into the binary
-tests/e2e-api/        black-box API tests over a real PostgreSQL (testcontainers)
-tests/e2e-ui/         Playwright journey against the running stack (screenshots in screenshots/)
+content/
+  site.json
+  series/<slug>/series.json
+  series/<slug>/episodes/<episode-slug>.json
 ```
 
-## API
+`content/site.json`:
 
-All routes live under `/api/v1`. There is no authentication: the service is
-meant to run locally.
+```json
+{ "title": "Podcasts", "description": "", "author": "Ada" }
+```
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET, POST | `/series` | List (`?q=`) or create series |
-| GET, PUT, DELETE | `/series/{id}` | Read, update (send `version`), delete (only when empty) |
-| GET, PUT, DELETE | `/series/{id}/cover` | Cover image (multipart field `file`) |
-| GET, POST | `/series/{id}/episodes` | List (`?status=draft\|published`) or create episodes |
-| GET, PUT, DELETE | `/episodes/{id}` | Read, update (send `version`), delete |
-| GET, PUT | `/episodes/{id}/audio` | Stream with Range support / upload (multipart: `duration_seconds` first, then `file`) |
-| GET, PUT | `/episodes/{id}/chapters` | Podcasting 2.0 JSON chapters document |
-| POST | `/episodes/{id}/publish`, `/episodes/{id}/unpublish` | Publishing requires audio and at least one chapter |
-
-Listening progress (single local listener for now):
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/listening/progress` | Saved positions for every episode |
-| PUT | `/listening/progress/{episodeId}` | Save a position (`position_seconds`, optional `completed`) |
-| POST | `/listening/progress/{episodeId}/played` | Mark as played |
-| DELETE | `/listening/progress/{episodeId}` | Mark as unplayed |
-| GET | `/listening/continue?limit=5` | In-progress episodes, newest first, with episode and series details |
-
-Errors are returned as `{"code": "...", "message": "..."}` with 400, 404, 409,
-413 or 422.
-
-## Chapters format
-
-Chapters use the [Podcasting 2.0 JSON chapters](https://github.com/Podcastindex-org/podcast-namespace/blob/main/docs/examples/chapters/jsonChapters.md)
-format:
+`content/series/<slug>/series.json`:
 
 ```json
 {
-  "version": "1.2.0",
+  "title": "NLP et LLM",
+  "author": "Ada",
+  "description": "",
+  "accent_color": "#7A9CFF",
+  "cover_url": "https://media.example.com/cover.jpg"
+}
+```
+
+`content/series/<slug>/episodes/<episode-slug>.json`:
+
+```json
+{
+  "number": 1,
+  "title": "Les origines",
+  "description": "",
+  "published_at": "2026-10-24",
+  "duration_seconds": 2876.8,
+  "audio_url": "https://media.example.com/nlp-et-llm/01-les-origines.mp3",
   "chapters": [
-    { "startTime": 0, "title": "Intro" },
-    { "startTime": 95.5, "title": "Main topic", "url": "https://example.com", "img": "https://example.com/art.png" }
+    { "startTime": 0, "title": "Introduction" },
+    { "startTime": 179, "title": "Alan Turing" }
   ]
 }
 ```
 
-Rules: the first chapter starts at 0, start times are unique, every title is
-set, and when the audio duration is known every chapter starts before it.
+Rules enforced by `make check`:
 
-## Health check
+- series and episode slugs match `^[a-z0-9]+(-[a-z0-9]+)*$`;
+- episode numbers are unique per series;
+- `published_at` is `YYYY-MM-DD` or RFC 3339;
+- `audio_url` is an absolute HTTP(S) URL, or a path relative to the series
+  directory (copied into the build under `media/`);
+- chapters are sorted, the first starts at 0, start times are unique and every
+  chapter starts before `duration_seconds`.
 
-`GET /healthz` returns `200 OK` when the process is running.
+`make check` prints every problem at once; `npm run check` in `web/player` does
+the same.
+
+## Development
+
+```sh
+cd web/player
+npm install
+npm run dev          # generates the data into public/, then starts Vite on :5174
+npm run build        # tsc + vite build + content generation
+npm test             # Vitest
+npm run check        # content validation
+```
+
+Set `CONTENT_DIR` to build from another content tree (the e2e suite does this).
+
+## Deployment
+
+`.github/workflows/pages.yml` builds the site and publishes
+`web/player/dist` with the official Pages actions. For a project site served
+under `https://<user>.github.io/<repo>/`, the workflow builds with
+`BASE_PATH=/<repo>/`; a user site uses the default `/`.
+
+The build writes `404.html` (a copy of `index.html`) so deep links such as
+`/series/<slug>` resolve on Pages, and `.nojekyll` so Pages serves the output
+as-is.
+
+## Audio hosting
+
+Keep MP3s out of git: GitHub rejects files above 100 MiB, Git LFS is not served
+by Pages and its bandwidth quota disables downloads once exceeded. Upload the
+audio to R2 (or any HTTPS host) and put the absolute URL in `audio_url`.
+
+## Layout
+
+```
+content/                 series and episode JSON documents
+web/player/              the listener app and the content build script
+web/player/scripts/      content validation and site generation (Node)
+tests/e2e-ui/            Playwright journey against a fixture content tree
+.adrs/                   architecture decision records
+```

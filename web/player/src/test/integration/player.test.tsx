@@ -1,19 +1,9 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { AudioFileDTO, ChapterDTO } from "../../api/types";
-import { seedEpisode, seedProgress, seedSeries, store } from "../handlers";
+import type { ChapterDTO, Episode, Progress } from "../../api/types";
+import { seedEpisode, seedProgress, seedSeries } from "../handlers";
 import { makeMediaSessionStub } from "../mediaSession";
 import { renderApp } from "../renderApp";
-
-function audioFile(id: string, duration: number): AudioFileDTO {
-  return {
-    url: `/api/v1/episodes/${id}/audio`,
-    content_type: "audio/mpeg",
-    size_bytes: 2048,
-    duration_seconds: duration,
-    original_name: "episode.mp3",
-  };
-}
 
 interface PlayerSetup {
   positionSeconds?: number;
@@ -21,35 +11,45 @@ interface PlayerSetup {
   cover?: boolean;
 }
 
+function storedProgress(): Record<string, Progress> {
+  const raw = window.localStorage.getItem("podcast.player.progress");
+  return raw ? (JSON.parse(raw) as Record<string, Progress>) : {};
+}
+
+function progressFor(episode: Episode): Progress | undefined {
+  return storedProgress()[episode.id];
+}
+
 async function renderPlayer(setup: PlayerSetup = {}) {
   const series = seedSeries({
-    id: "series-1",
-    title: "Deep Dive",
     slug: "deep-dive",
-    cover_url: setup.cover ? "/api/v1/series/series-1/cover" : null,
+    title: "Deep Dive",
+    cover_url: setup.cover ? "/covers/cover.png" : null,
   });
-  const first = seedEpisode(series.id, {
+  const first = seedEpisode(series.slug, {
     id: "episode-1",
     number: 1,
     title: "First episode",
-    audio: audioFile("episode-1", 100),
+    audio: { url: "/media/first.mp3", duration_seconds: 100 },
     ...(setup.chapters ? { chapters: setup.chapters } : {}),
   });
-  const second = seedEpisode(series.id, {
+  const second = seedEpisode(series.slug, {
     id: "episode-2",
     number: 2,
     title: "Second episode",
-    audio: audioFile("episode-2", 100),
+    audio: { url: "/media/second.mp3", duration_seconds: 100 },
   });
   if (setup.positionSeconds) seedProgress(first.id, { position_seconds: setup.positionSeconds });
 
-  const view = renderApp("/series/series-1");
+  const view = renderApp("/series/deep-dive");
   if (setup.positionSeconds) {
     // Wait until the progress query has landed so the resume position is known.
     await screen.findByRole("button", { name: /^Resume: Episode 1/ });
   }
   await view.user.click(await screen.findByRole("button", { name: "First episode" }));
   await screen.findByText("Now playing");
+  // Chapters are fetched from the episode document after playback starts.
+  await screen.findByText(/^Chapter \d of 2$/);
   return { ...view, series, first, second };
 }
 
@@ -57,21 +57,13 @@ function slider() {
   return screen.getByRole("slider", { name: "Playback position" });
 }
 
-function progressPuts() {
-  return store.requests.filter(
-    (request) => request.method === "PUT" && request.path.startsWith("/api/v1/listening/progress/"),
-  );
-}
-
 describe("player", () => {
   it("starts the episode at its saved position and shows the player", async () => {
-    const { engine } = await renderPlayer({ positionSeconds: 42 });
+    const { engine, first } = await renderPlayer({ positionSeconds: 42 });
 
     expect(engine.loadCalls).toHaveLength(1);
-    expect(engine.loadCalls[0]).toEqual({
-      source: "/api/v1/episodes/episode-1/audio",
-      startAt: 42,
-    });
+    expect(engine.loadCalls[0]).toEqual({ source: "/media/first.mp3", startAt: 42 });
+    expect(progressFor(first)?.position_seconds).toBe(42);
     expect(screen.getByRole("heading", { name: "First episode" })).toBeInTheDocument();
     expect(screen.getByText("Chapter 2 of 2")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Main topic" })).toBeInTheDocument();
@@ -93,8 +85,7 @@ describe("player", () => {
   });
 
   it("seeks backwards 15 seconds and forwards 30 seconds", async () => {
-    const { engine, user } = await renderPlayer({ positionSeconds: 42 });
-    store.requests = [];
+    const { engine, user, first } = await renderPlayer({ positionSeconds: 42 });
 
     await user.click(screen.getByRole("button", { name: "Back 15 seconds" }));
     expect(engine.seekCalls.at(-1)).toBe(27);
@@ -104,8 +95,7 @@ describe("player", () => {
     expect(engine.seekCalls.at(-1)).toBe(57);
     expect(slider()).toHaveAttribute("aria-valuenow", "57");
 
-    await waitFor(() => expect(progressPuts().length).toBeGreaterThanOrEqual(1));
-    expect(progressPuts().at(-1)?.body).toEqual({ position_seconds: 57 });
+    await waitFor(() => expect(progressFor(first)?.position_seconds).toBe(57));
   });
 
   it("restarts the current chapter, then steps to the previous one", async () => {
@@ -174,7 +164,7 @@ describe("player", () => {
     expect(screen.getByRole("button", { name: "Playback speed: 1.5×" })).toBeInTheDocument();
 
     view.unmount();
-    const second = renderApp("/series/series-1");
+    const second = renderApp("/series/deep-dive");
     await second.user.click(await screen.findByRole("button", { name: "First episode" }));
     expect(await screen.findByRole("button", { name: "Playback speed: 1.5×" })).toBeInTheDocument();
   });
@@ -212,69 +202,64 @@ describe("player", () => {
 
   it("throttles progress saves while playing and saves on pause and seek", async () => {
     const view = await renderPlayer();
-    store.requests = [];
+    const { first } = view;
     vi.useFakeTimers({ toFake: ["Date"] });
     const base = Date.now();
 
     act(() => {
       view.engine.emitTime(5, 100);
     });
-    expect(progressPuts()).toHaveLength(0);
+    expect(progressFor(first)?.position_seconds ?? 0).toBe(0);
 
     vi.setSystemTime(new Date(base + 10_000));
     act(() => {
       view.engine.emitTime(15, 100);
     });
-    await waitFor(() => expect(progressPuts()).toHaveLength(1));
-    expect(progressPuts()[0].body).toEqual({ position_seconds: 15 });
+    await waitFor(() => expect(progressFor(first)?.position_seconds).toBe(15));
 
     act(() => {
       view.engine.emitTime(25, 100);
     });
-    expect(progressPuts()).toHaveLength(1);
+    expect(progressFor(first)?.position_seconds).toBe(15);
 
     vi.setSystemTime(new Date(base + 20_000));
     act(() => {
       view.engine.emitTime(35, 100);
     });
-    await waitFor(() => expect(progressPuts()).toHaveLength(2));
-    expect(progressPuts()[1].body).toEqual({ position_seconds: 35 });
+    await waitFor(() => expect(progressFor(first)?.position_seconds).toBe(35));
 
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    await waitFor(() => expect(progressPuts().at(-1)?.body).toEqual({ position_seconds: 35 }));
+    await waitFor(() => expect(progressFor(first)?.position_seconds).toBe(35));
 
     fireEvent.click(screen.getByRole("button", { name: "Back 15 seconds" }));
-    await waitFor(() => expect(progressPuts().at(-1)?.body).toEqual({ position_seconds: 20 }));
+    await waitFor(() => expect(progressFor(first)?.position_seconds).toBe(20));
   });
 
   it("marks the episode played and starts the next one when it ends", async () => {
     const view = await renderPlayer();
+    const { first } = view;
 
     act(() => {
       view.engine.emitEnded();
     });
 
     await waitFor(() => expect(view.engine.loadCalls).toHaveLength(2));
-    expect(view.engine.loadCalls[1]).toEqual({
-      source: "/api/v1/episodes/episode-2/audio",
-      startAt: 0,
-    });
-    expect(store.requests.some((request) => request.method === "POST")).toBe(true);
+    expect(view.engine.loadCalls[1]).toEqual({ source: "/media/second.mp3", startAt: 0 });
+    await waitFor(() => expect(progressFor(first)?.completed).toBe(true));
     expect(await screen.findByRole("heading", { name: "Second episode" })).toBeInTheDocument();
     expect(screen.getByText("Chapter 1 of 2")).toBeInTheDocument();
   });
 
   it("does not auto-play when the toggle is off", async () => {
     const view = await renderPlayer();
+    const { first } = view;
     await view.user.click(screen.getByRole("checkbox", { name: "Autoplay next episode" }));
 
     act(() => {
       view.engine.emitEnded();
     });
 
-    await waitFor(() =>
-      expect(store.requests.some((request) => request.method === "POST")).toBe(true),
-    );
+    await waitFor(() => expect(progressFor(first)?.completed).toBe(true));
     expect(view.engine.loadCalls).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "First episode" })).toBeInTheDocument();
   });
@@ -283,7 +268,7 @@ describe("player", () => {
     const view = await renderPlayer();
     await view.user.click(screen.getByRole("button", { name: "Play next: Second episode" }));
 
-    expect(view.engine.loadCalls.at(-1)?.source).toBe("/api/v1/episodes/episode-2/audio");
+    expect(view.engine.loadCalls.at(-1)?.source).toBe("/media/second.mp3");
     expect(await screen.findByRole("heading", { name: "Second episode" })).toBeInTheDocument();
   });
 
@@ -318,9 +303,7 @@ describe("player", () => {
     expect(stub.metadata?.title).toBe("First episode");
     expect(stub.metadata?.artist).toBe("Deep Dive");
     expect(stub.metadata?.album).toBe("Intro");
-    expect(stub.metadata?.artwork[0]?.src).toBe(
-      `${window.location.origin}/api/v1/series/series-1/cover`,
-    );
+    expect(stub.metadata?.artwork[0]?.src).toBe(`${window.location.origin}/covers/cover.png`);
     expect(stub.setPositionState).toHaveBeenCalled();
 
     act(() => stub.handlers.pause?.({ action: "pause" }));

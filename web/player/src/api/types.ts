@@ -1,34 +1,11 @@
-export type EpisodeStatus = "draft" | "published";
-
-export interface Series {
-  id: string;
-  slug: string;
+/** Site-wide metadata rendered by the listener app. */
+export interface SiteInfo {
   title: string;
-  author: string;
   description: string;
-  accent_color: string;
-  cover_url: string | null;
-  feed_url: string;
-  episode_count: number;
-  published_count: number;
-  total_duration_seconds: number;
-  created_at: string;
-  updated_at: string;
-  version: number;
+  author: string;
 }
 
-export interface SeriesListResponse {
-  series: Series[];
-}
-
-export interface AudioFileDTO {
-  url: string;
-  content_type: string;
-  size_bytes: number;
-  duration_seconds: number;
-  original_name: string;
-}
-
+/** One chapter, normalized from the Podcasting 2.0 camelCase fields. */
 export interface ChapterDTO {
   start_seconds: number;
   end_seconds?: number | null;
@@ -38,34 +15,53 @@ export interface ChapterDTO {
   toc: boolean;
 }
 
+/** An episode as listed in the catalog index. */
 export interface Episode {
   id: string;
-  series_id: string;
+  slug: string;
+  series_slug: string;
   number: number;
   title: string;
   description: string;
-  status: EpisodeStatus;
-  audio: AudioFileDTO | null;
-  chapters: ChapterDTO[];
-  published_at?: string | null;
-  created_at: string;
-  updated_at: string;
-  version: number;
+  published_at: string;
+  duration_seconds: number;
+  chapter_count: number;
+  audio_url: string;
 }
 
-export interface EpisodeListResponse {
+/** The full episode document, including its chapters. */
+export interface EpisodeDetail extends Omit<Episode, "chapter_count"> {
+  chapters: ChapterDTO[];
+}
+
+/** A series and its published episodes. */
+export interface Series {
+  slug: string;
+  title: string;
+  author: string;
+  description: string;
+  accent_color: string;
+  cover_url: string | null;
+  episode_count: number;
+  total_duration_seconds: number;
   episodes: Episode[];
+}
+
+/** The generated catalog document. */
+export interface Catalog {
+  site: SiteInfo;
+  series: Series[];
 }
 
 /** The identity of the series an episode belongs to, as needed by the player. */
 export interface PlaybackSeries {
-  id: string;
   slug: string;
   title: string;
   accent_color: string;
   cover_url: string | null;
 }
 
+/** Listening progress, persisted in this browser only. */
 export interface Progress {
   episode_id: string;
   position_seconds: number;
@@ -77,29 +73,12 @@ export interface ProgressListResponse {
   progress: Progress[];
 }
 
-export interface EpisodeSummary {
-  id: string;
-  number: number;
-  title: string;
-  duration_seconds: number;
-  chapter_count: number;
-  series_id: string;
-  series_title: string;
-  series_slug: string;
-  accent_color: string;
-  cover_url: string | null;
-}
-
 export interface ContinueItem {
   progress: Progress;
-  episode: EpisodeSummary;
+  episode: Episode;
+  series: PlaybackSeries;
 }
 
 export interface ContinueResponse {
   items: ContinueItem[];
-}
-
-export interface ApiErrorBody {
-  code: string;
-  message: string;
 }

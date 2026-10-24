@@ -1,35 +1,24 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { AudioFileDTO } from "../../api/types";
 import { seedEpisode, seedSeries } from "../handlers";
 import { renderApp } from "../renderApp";
 
-function audioFile(id: string): AudioFileDTO {
-  return {
-    url: `/api/v1/episodes/${id}/audio`,
-    content_type: "audio/mpeg",
-    size_bytes: 2048,
-    duration_seconds: 100,
-    original_name: "episode.mp3",
-  };
-}
-
 describe("mini player", () => {
   it("docks after playback starts, controls playback and opens the player", async () => {
-    const series = seedSeries({ id: "series-1", title: "Deep Dive", slug: "deep-dive" });
-    seedEpisode(series.id, {
+    const series = seedSeries({ slug: "deep-dive", title: "Deep Dive" });
+    seedEpisode(series.slug, {
       id: "episode-1",
       number: 1,
       title: "First episode",
-      audio: audioFile("episode-1"),
+      audio: { url: "/media/first.mp3", duration_seconds: 100 },
     });
 
-    const { user, engine } = renderApp("/series/series-1");
+    const { user, engine } = renderApp("/series/deep-dive");
     await user.click(await screen.findByRole("button", { name: "Play episode 1: First episode" }));
 
     const mini = screen.getByRole("region", { name: "Mini player" });
     expect(within(mini).getByText("First episode")).toBeInTheDocument();
-    expect(within(mini).getByText("Chapter 1: Intro")).toBeInTheDocument();
+    await waitFor(() => expect(within(mini).getByText("Chapter 1: Intro")).toBeInTheDocument());
     expect(within(mini).queryByText("Now playing")).not.toBeInTheDocument();
 
     await user.click(within(mini).getByRole("button", { name: "Pause" }));
@@ -51,10 +40,10 @@ describe("mini player", () => {
   });
 
   it("is not shown before anything is playing", async () => {
-    const series = seedSeries({ id: "series-1", title: "Deep Dive", slug: "deep-dive" });
-    seedEpisode(series.id, { id: "episode-1", number: 1, audio: audioFile("episode-1") });
+    const series = seedSeries({ slug: "deep-dive", title: "Deep Dive" });
+    seedEpisode(series.slug, { id: "episode-1", number: 1 });
 
-    renderApp("/series/series-1");
+    renderApp("/series/deep-dive");
     await screen.findByRole("heading", { name: "Deep Dive" });
     expect(screen.queryByRole("region", { name: "Mini player" })).not.toBeInTheDocument();
   });

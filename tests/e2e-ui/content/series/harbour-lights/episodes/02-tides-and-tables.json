@@ -1,0 +1,14 @@
+{
+  "number": 2,
+  "title": "Tides and tables",
+  "description": "Episode 2 of the harbour sessions.",
+  "published_at": "2026-10-08",
+  "duration_seconds": 120,
+  "audio_url": "media/tone-120s.mp3",
+  "chapters": [
+    { "startTime": 0, "title": "First light" },
+    { "startTime": 30, "title": "Tide tables" },
+    { "startTime": 60, "title": "The long swell" },
+    { "startTime": 90, "title": "Sign-off" }
+  ]
+}

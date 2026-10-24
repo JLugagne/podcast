@@ -7,7 +7,7 @@ import { PlaybackProvider } from "./playback/PlaybackProvider";
 
 export function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <PlaybackProvider>
         <AppShell />
       </PlaybackProvider>
@@ -20,7 +20,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<LibraryPage />} />
-      <Route path="/series/:id" element={<SeriesPage />} />
+      <Route path="/series/:slug" element={<SeriesPage />} />
       <Route path="/play" element={<PlayerPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

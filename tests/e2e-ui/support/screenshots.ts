@@ -4,7 +4,7 @@ import type { CDPSession, Page } from "@playwright/test";
 import { assertCleanLayout } from "./layout";
 
 /** Screenshot folder of one spec; each spec owns and cleans its own folder. */
-export type ScreenshotArea = "admin" | "listener";
+export type ScreenshotArea = "listener";
 
 export interface ScreenshotEntry {
   step: number;

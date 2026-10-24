@@ -1,78 +1,42 @@
-BINARY   := bin/podcast
-IMAGE    ?= podcast:local
-GO       ?= go
-COMPOSE  ?= docker compose
+PLAYER_DIR := web/player
+E2E_DIR    := tests/e2e-ui
+CONTENT_DIR ?= content
 
-# golangci-lint is run through `go run` so it is always built with the module's Go toolchain.
-GOLANGCI_LINT ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+.PHONY: site build dev check test lint e2e-ui clean
 
-.PHONY: build web run migrate test test-short test-int web-test e2e-ui e2e-ui-clean lint arch-lint up down dev-db tidy
+## site: install the player dependencies and build the static site.
+site:
+	cd $(PLAYER_DIR) && npm ci
+	cd $(PLAYER_DIR) && CONTENT_DIR=../../$(CONTENT_DIR) npm run build
 
-## build: compile the server binary (the admin UI is not rebuilt).
-build:
-	$(GO) build -trimpath -o $(BINARY) .
+## build: alias for site.
+build: site
 
-## web: install the web app dependencies and build them into their dist folders.
-web:
-	cd web/admin && npm ci && npm run build
-	cd web/player && npm ci && npm run build
+## dev: run the Vite dev server (expects `npm run build` data in public/ or a previous build).
+dev:
+	cd $(PLAYER_DIR) && npm run dev
 
-## run: run the server from source (expects PostgreSQL on localhost:5432).
-run:
-	$(GO) run . serve
+## check: validate the content tree without building.
+check:
+	cd $(PLAYER_DIR) && CONTENT_DIR=../../$(CONTENT_DIR) npm run check
 
-## migrate: apply the database migrations and exit.
-migrate:
-	$(GO) run . migrate
-
-## test: run every test with the race detector.
+## test: run the Vitest suite once.
 test:
-	$(GO) test -race -count=1 ./...
+	cd $(PLAYER_DIR) && npm test -- --run
 
-## test-short: run the unit tests, skipping container-based integration tests.
-test-short:
-	$(GO) test -short ./...
-
-## test-int: run the container-backed integration and e2e API tests.
-test-int:
-	$(GO) test -count=1 -run . ./tests/... ./internal/catalog/outbound/pgadapter/... ./internal/listening/outbound/pgadapter/...
-
-## web-test: run the admin and listener UI tests once.
-web-test:
-	cd web/admin && npm test -- --run
-	cd web/player && npm test -- --run
-
-## e2e-ui: run the Playwright suite against the docker compose stack.
-e2e-ui:
-	$(COMPOSE) up -d --build --wait
-	cd tests/e2e-ui && npm ci && npx playwright install chromium && npm run e2e
-
-## e2e-ui-clean: stop the stack and delete its volumes (screenshots stay).
-e2e-ui-clean:
-	$(COMPOSE) down -v
-
-## lint: run go vet, golangci-lint and the arch-lint boundaries.
+## lint: run Biome and the e2e TypeScript check.
 lint:
-	$(GO) vet ./...
-	$(GOLANGCI_LINT) run
-	go-arch-lint check
+	cd $(PLAYER_DIR) && npm run lint
+	cd $(E2E_DIR) && npm run typecheck
 
-## arch-lint: check the go-arch-lint boundaries.
-arch-lint:
-	go-arch-lint check
+## e2e-ui: build the site from the e2e content and run the Playwright journey.
+e2e-ui:
+	cd $(PLAYER_DIR) && npm ci
+	node $(E2E_DIR)/fixtures/generate.cjs
+	cd $(PLAYER_DIR) && CONTENT_DIR=../../$(E2E_DIR)/content npm run build
+	cd $(E2E_DIR) && npm ci && npx playwright install chromium && npm run e2e
 
-## up: build and start the full stack (PostgreSQL, migrations, app).
-up:
-	$(COMPOSE) up --build
-
-## down: stop the stack and keep its volumes.
-down:
-	$(COMPOSE) down
-
-## dev-db: start only the development PostgreSQL on localhost:5432.
-dev-db:
-	$(COMPOSE) -f compose.dev.yml up -d
-
-## tidy: synchronise go.mod and go.sum.
-tidy:
-	$(GO) mod tidy
+## clean: remove the build output and the generated e2e artifacts.
+clean:
+	rm -rf $(PLAYER_DIR)/dist $(E2E_DIR)/fixtures/generated $(E2E_DIR)/test-results $(E2E_DIR)/screenshots
+	find $(E2E_DIR)/content -type d -name media -exec rm -rf {} +

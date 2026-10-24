@@ -2,7 +2,7 @@
   "name": "podcast-e2e-ui",
   "private": true,
   "version": "0.1.0",
-  "description": "Playwright end-to-end UI suite for the podcast admin SPA.",
+  "description": "Playwright end-to-end journey for the static podcast site.",
   "scripts": {
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",

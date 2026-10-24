@@ -9,8 +9,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { api, saveProgressOnUnload } from "../api/client";
-import type { ChapterDTO, Episode, PlaybackSeries } from "../api/types";
+import { getCatalog, getEpisode, resolveAudioURL } from "../api/client";
+import type { Catalog, ChapterDTO, Episode, PlaybackSeries } from "../api/types";
 import { queryKeys } from "../hooks/keys";
 import {
   chapterEnd,
@@ -25,6 +25,7 @@ import {
   setMediaSessionMetadata,
   setMediaSessionPositionState,
 } from "../lib/mediaSession";
+import { getProgress, markPlayed, recordProgress } from "../lib/progress";
 import { PROGRESS_SAVE_INTERVAL_MS, ProgressThrottle } from "../lib/progressThrottle";
 import {
   type SleepTimer,
@@ -80,7 +81,6 @@ export function usePlayback(): PlaybackContextValue {
 
 function toPlaybackSeries(series: PlaybackSeries): PlaybackSeries {
   return {
-    id: series.id,
     slug: series.slug,
     title: series.title,
     accent_color: series.accent_color,
@@ -100,6 +100,7 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
 
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [series, setSeries] = useState<PlaybackSeries | null>(null);
+  const [chapters, setChapters] = useState<ChapterDTO[]>([]);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -146,8 +147,8 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
     setSleepTimerState(timer);
   }, []);
 
-  const announceChapter = useCallback((index: number, chapters: ChapterDTO[]) => {
-    const chapter = chapters[index];
+  const announceChapter = useCallback((index: number, list: ChapterDTO[]) => {
+    const chapter = list[index];
     setAnnouncement(chapter ? `Now playing chapter ${index + 1}: ${chapter.title}` : "");
   }, []);
 
@@ -157,7 +158,7 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
     const now = Date.now();
     if (!options.force && !throttleRef.current.shouldSave(now)) return;
     throttleRef.current.markSaved(now);
-    void api.recordProgress(current.id, value).catch(() => undefined);
+    recordProgress(current.id, value, durationRef.current);
   }, []);
 
   const pauseForSleepTimer = useCallback(() => {
@@ -165,40 +166,60 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
     setPlayingState(false);
   }, [engine, setPlayingState]);
 
+  const loadChapters = useCallback(
+    async (nextEpisode: Episode, knownDuration: number) => {
+      try {
+        const detail = await getEpisode(nextEpisode.id);
+        if (episodeRef.current?.id !== nextEpisode.id) return;
+        const ordered = sortChapters(detail.chapters);
+        chaptersRef.current = ordered;
+        setChapters(ordered);
+        lastChapterIndexRef.current = chapterIndexAt(ordered, positionRef.current);
+        announceChapter(lastChapterIndexRef.current, ordered);
+        if (knownDuration <= 0 && detail.duration_seconds > 0) {
+          setDurationState(detail.duration_seconds);
+        }
+      } catch {
+        // Chapters are optional: playback continues without them.
+      }
+    },
+    [announceChapter, setDurationState],
+  );
+
   const start = useCallback(
     (nextEpisode: Episode, nextSeries: PlaybackSeries, positionSeconds = 0) => {
-      if (!nextEpisode.audio) {
+      if (!nextEpisode.audio_url) {
         setError("This episode has no audio file.");
         return;
       }
-      const chapters = sortChapters(nextEpisode.chapters);
       const startAt = Math.max(0, positionSeconds);
-      const knownDuration = Math.max(0, nextEpisode.audio.duration_seconds);
+      const knownDuration = Math.max(0, nextEpisode.duration_seconds);
 
       episodeRef.current = nextEpisode;
       seriesRef.current = toPlaybackSeries(nextSeries);
-      chaptersRef.current = chapters;
+      chaptersRef.current = [];
       durationRef.current = knownDuration;
-      lastChapterIndexRef.current = chapterIndexAt(chapters, startAt);
+      lastChapterIndexRef.current = -1;
       throttleRef.current = new ProgressThrottle(PROGRESS_SAVE_INTERVAL_MS, Date.now());
 
       setEpisode(nextEpisode);
       setSeries(toPlaybackSeries(nextSeries));
+      setChapters([]);
       updatePosition(startAt);
       setDurationState(knownDuration);
       setError(null);
       if (sleepTimerRef.current.kind === "chapter") setSleepTimer({ kind: "off" });
 
-      engine.load(nextEpisode.audio.url, startAt);
+      engine.load(resolveAudioURL(nextEpisode.audio_url), startAt);
       engine.setPlaybackRate(rateRef.current);
       setPlayingState(true);
-      announceChapter(lastChapterIndexRef.current, chapters);
       void engine.play().catch(() => {
         setPlayingState(false);
         setError("The audio could not be played.");
       });
+      void loadChapters(nextEpisode, knownDuration);
     },
-    [engine, updatePosition, setDurationState, setSleepTimer, announceChapter, setPlayingState],
+    [engine, updatePosition, setDurationState, setSleepTimer, setPlayingState, loadChapters],
   );
 
   const seekTo = useCallback(
@@ -208,11 +229,11 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
       const value = maximum > 0 ? Math.min(Math.max(0, seconds), maximum) : Math.max(0, seconds);
       engine.seek(value);
       updatePosition(value);
-      const chapters = chaptersRef.current;
-      const index = chapterIndexAt(chapters, value);
+      const list = chaptersRef.current;
+      const index = chapterIndexAt(list, value);
       if (index !== lastChapterIndexRef.current) {
         lastChapterIndexRef.current = index;
-        announceChapter(index, chapters);
+        announceChapter(index, list);
       }
       saveProgress(value, { force: true });
     },
@@ -254,46 +275,36 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
 
   const playNextEpisode = useCallback(
     async (current: Episode) => {
-      let episodes: Episode[];
+      let catalog: Catalog;
       try {
-        const response = await queryClient.fetchQuery({
-          queryKey: queryKeys.publishedEpisodes(current.series_id),
-          queryFn: () => api.listEpisodes(current.series_id, "published"),
-          staleTime: 0,
+        catalog = await queryClient.fetchQuery({
+          queryKey: queryKeys.catalog,
+          queryFn: getCatalog,
+          staleTime: Number.POSITIVE_INFINITY,
         });
-        episodes = response.episodes;
       } catch {
         return;
       }
 
-      const index = episodes.findIndex((candidate) => candidate.id === current.id);
-      const next = index >= 0 ? episodes[index + 1] : undefined;
+      const seriesData = catalog.series.find((item) => item.slug === current.series_slug);
+      if (!seriesData) return;
+      const index = seriesData.episodes.findIndex((candidate) => candidate.id === current.id);
+      const next = index >= 0 ? seriesData.episodes[index + 1] : undefined;
       if (!next) return;
 
-      let resumeSeconds = 0;
-      try {
-        const response = await queryClient.fetchQuery({
-          queryKey: queryKeys.progress(),
-          queryFn: () => api.listProgress(),
-          staleTime: 0,
-        });
-        const row = response.progress.find((item) => item.episode_id === next.id);
-        if (row && !row.completed && row.position_seconds > 0) {
-          resumeSeconds = row.position_seconds;
-        }
-      } catch {
-        // Start the next episode from the beginning when progress is unavailable.
-      }
-
-      let nextSeries = seriesRef.current;
-      if (!nextSeries || nextSeries.id !== next.series_id) {
-        try {
-          nextSeries = toPlaybackSeries(await api.getSeries(next.series_id));
-        } catch {
-          return;
-        }
-      }
-      start(next, nextSeries, resumeSeconds);
+      const row = getProgress(next.id);
+      const resumeSeconds =
+        row && !row.completed && row.position_seconds > 0 ? row.position_seconds : 0;
+      start(
+        next,
+        {
+          slug: seriesData.slug,
+          title: seriesData.title,
+          accent_color: seriesData.accent_color,
+          cover_url: seriesData.cover_url,
+        },
+        resumeSeconds,
+      );
     },
     [queryClient, start],
   );
@@ -302,19 +313,13 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
     const current = episodeRef.current;
     setPlayingState(false);
     if (!current) return;
+    markPlayed(current.id, durationRef.current);
     const timer = sleepTimerRef.current;
-    void (async () => {
-      try {
-        await api.markPlayed(current.id);
-      } catch {
-        // Keep the local state consistent even when the save fails.
-      }
-      void queryClient.invalidateQueries({ queryKey: queryKeys.listeningAll });
-      setSleepTimer({ kind: "off" });
-      if (shouldStopAtEpisodeEnd(timer)) return;
-      if (!autoPlayNextRef.current) return;
-      await playNextEpisode(current);
-    })();
+    void queryClient.invalidateQueries({ queryKey: queryKeys.listeningAll });
+    setSleepTimer({ kind: "off" });
+    if (shouldStopAtEpisodeEnd(timer)) return;
+    if (!autoPlayNextRef.current) return;
+    void playNextEpisode(current);
   }, [playNextEpisode, queryClient, setPlayingState, setSleepTimer]);
 
   const handleEngineEvent = useCallback(
@@ -323,21 +328,17 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
         case "time": {
           updatePosition(event.currentTime);
           if (event.duration > 0) setDurationState(event.duration);
-          const chapters = chaptersRef.current;
-          const index = chapterIndexAt(chapters, event.currentTime);
+          const list = chaptersRef.current;
+          const index = chapterIndexAt(list, event.currentTime);
           const chapterChanged = index !== lastChapterIndexRef.current;
           if (chapterChanged) {
             lastChapterIndexRef.current = index;
-            announceChapter(index, chapters);
+            announceChapter(index, list);
           }
           if (playingRef.current) saveProgress(event.currentTime, { force: chapterChanged });
           const timer = sleepTimerRef.current;
           if (timer.kind === "chapter") {
-            const end = chapterEnd(
-              chapters,
-              timer.chapterIndex,
-              event.duration || durationRef.current,
-            );
+            const end = chapterEnd(list, timer.chapterIndex, event.duration || durationRef.current);
             if (shouldPauseForChapterTimer(timer, event.currentTime, end)) {
               setSleepTimer({ kind: "off" });
               pauseForSleepTimer();
@@ -381,7 +382,7 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
   useEffect(() => {
     const handlePageHide = () => {
       const current = episodeRef.current;
-      if (current) saveProgressOnUnload(current.id, positionRef.current);
+      if (current) recordProgress(current.id, positionRef.current, durationRef.current);
     };
     window.addEventListener("pagehide", handlePageHide);
     return () => window.removeEventListener("pagehide", handlePageHide);
@@ -405,7 +406,6 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
     return () => window.clearInterval(interval);
   }, [sleepTimer, pauseForSleepTimer, setSleepTimer]);
 
-  const chapters = useMemo(() => sortChapters(episode?.chapters ?? []), [episode]);
   const chapterIndex = chapters.length > 0 ? chapterIndexAt(chapters, position) : -1;
   const currentChapter = chapterIndex >= 0 ? chapters[chapterIndex] : null;
   const currentChapterTitle = currentChapter?.title ?? null;

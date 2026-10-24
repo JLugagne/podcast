@@ -23,7 +23,7 @@ function stateLabel(progress: Progress | undefined, duration: number): string {
   return "New";
 }
 
-/** One row of the published episode list of a series. */
+/** One row of the episode list of a series. */
 export function EpisodeRow({
   episode,
   progress,
@@ -34,7 +34,7 @@ export function EpisodeRow({
   onMarkPlayed,
   onMarkUnplayed,
 }: EpisodeRowProps) {
-  const duration = episode.audio?.duration_seconds ?? 0;
+  const duration = episode.duration_seconds;
   const positionSeconds = progress?.position_seconds ?? 0;
   const percent = duration > 0 ? Math.min(100, (positionSeconds / duration) * 100) : 0;
   const label = `${playing ? "Pause" : "Play"} episode ${episode.number}: ${episode.title}`;
@@ -60,7 +60,7 @@ export function EpisodeRow({
         <p className="episode-row-meta">
           <span>{formatDuration(duration)}</span>
           <span aria-hidden="true">·</span>
-          <span>{pluralize(episode.chapters.length, "chapter")}</span>
+          <span>{pluralize(episode.chapter_count, "chapter")}</span>
           <span aria-hidden="true">·</span>
           <span>{stateLabel(progress, duration)}</span>
         </p>

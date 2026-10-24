@@ -1,34 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../api/client";
+import { getCatalog, getEpisode } from "../api/client";
 import { queryKeys } from "./keys";
 
-export function useSeriesList() {
+/** The whole catalog: one request per page load, cached for the session. */
+export function useCatalog() {
   return useQuery({
-    queryKey: queryKeys.seriesList,
-    queryFn: () => api.listSeries(),
+    queryKey: queryKeys.catalog,
+    queryFn: getCatalog,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 }
 
-export function useSeries(id: string | undefined) {
-  return useQuery({
-    queryKey: queryKeys.seriesDetail(id ?? ""),
-    queryFn: () => api.getSeries(id as string),
-    enabled: Boolean(id),
-  });
-}
-
-export function usePublishedEpisodes(seriesId: string | undefined) {
-  return useQuery({
-    queryKey: queryKeys.publishedEpisodes(seriesId ?? ""),
-    queryFn: () => api.listEpisodes(seriesId as string, "published"),
-    enabled: Boolean(seriesId),
-  });
-}
-
+/** The full document of one episode, including its chapters. */
 export function useEpisode(id: string | undefined) {
   return useQuery({
     queryKey: queryKeys.episode(id ?? ""),
-    queryFn: () => api.getEpisode(id as string),
+    queryFn: () => getEpisode(id as string),
     enabled: Boolean(id),
+    staleTime: Number.POSITIVE_INFINITY,
   });
 }

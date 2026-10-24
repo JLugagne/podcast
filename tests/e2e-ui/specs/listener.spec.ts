@@ -1,42 +1,14 @@
-import { readFileSync } from "node:fs";
-import { expect, type APIRequestContext, test } from "@playwright/test";
-import {
-  COVER_PATH,
-  LISTEN_AUDIO_DURATION_SECONDS,
-  getListenAudioFixture,
-} from "../fixtures/generate";
+import { expect, type Page, test } from "@playwright/test";
 import { resetScreenshots, ScreenshotRecorder } from "../support/screenshots";
 
-const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8080";
-const stamp = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const seriesTitle = `Harbour Lights ${stamp}`;
-const seriesSlug = `harbour-lights-${stamp}`;
-const episodeTitles = [
-  `The harbour at dawn ${stamp}`,
-  `Tides and tables ${stamp}`,
-  `Night watch ${stamp}`,
-];
+const seriesSlug = "harbour-lights";
+const seriesTitle = "Harbour Lights";
+const episodeTitles = ["The harbour at dawn", "Tides and tables", "Night watch"];
+const episodeId = `${seriesSlug}/01-the-harbour-at-dawn`;
 const chapterStarts = [0, 30, 60, 90];
-const chapterTitles = [
-  ["Opening bell", "Harbour at dawn", "Deep current", "Finale"],
-  ["First light", "Tide tables", "The long swell", "Sign-off"],
-  ["Night watch", "Fog signal", "Sea glass", "Last call"],
-];
+const chapterTitles = ["Opening bell", "Harbour at dawn", "Deep current", "Finale"];
 
-interface SeriesBody {
-  id: string;
-  slug: string;
-}
-
-interface EpisodeBody {
-  id: string;
-  number: number;
-  title: string;
-  audio: { duration_seconds: number } | null;
-}
-
-interface ProgressRow {
-  episode_id: string;
+interface StoredProgress {
   position_seconds: number;
   completed: boolean;
 }
@@ -55,150 +27,55 @@ test.afterAll(() => {
   recorder?.writeManifest();
 });
 
-/** Escapes a literal string for use inside a RegExp. */
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Reads one episode's progress from this browser's localStorage. */
+async function readProgress(page: Page, id: string): Promise<StoredProgress | null> {
+  return page.evaluate((episode) => {
+    const raw = window.localStorage.getItem("podcast.player.progress");
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, StoredProgress>;
+    return map[episode] ?? null;
+  }, id);
 }
 
-/** Seeds one series with a cover, three episodes, chapters and two published episodes. */
-async function seedSeries(
-  api: APIRequestContext,
-): Promise<{ series: SeriesBody; episodes: EpisodeBody[] }> {
-  // The stack may hold the user's real listening progress: never touch rows
-  // that do not belong to the episodes seeded by this run.
-  const seriesResponse = await api.post("/api/v1/series", {
-    data: {
-      title: seriesTitle,
-      slug: seriesSlug,
-      author: "Mira Vale",
-      description: "Field recordings from a working harbour, recorded at first light.",
-      accent_color: "#F2A541",
-    },
-  });
-  expect(seriesResponse.status()).toBe(201);
-  const series = (await seriesResponse.json()) as SeriesBody;
-
-  const coverResponse = await api.put(`/api/v1/series/${series.id}/cover`, {
-    multipart: {
-      file: {
-        name: "cover.png",
-        mimeType: "image/png",
-        buffer: readFileSync(COVER_PATH),
-      },
-    },
-  });
-  expect(coverResponse.status()).toBe(200);
-
-  const audio = getListenAudioFixture();
-  const audioBuffer = readFileSync(audio.path);
-  const audioType = audio.name.endsWith(".mp3") ? "audio/mpeg" : "audio/wav";
-  const episodes: EpisodeBody[] = [];
-
-  for (let index = 0; index < 3; index += 1) {
-    const created = await api.post(`/api/v1/series/${series.id}/episodes`, {
-      data: {
-        number: index + 1,
-        title: episodeTitles[index],
-        description: `Episode ${index + 1} of the harbour sessions.`,
-      },
-    });
-    expect(created.status()).toBe(201);
-    const episode = (await created.json()) as EpisodeBody;
-
-    const uploaded = await api.put(`/api/v1/episodes/${episode.id}/audio`, {
-      multipart: {
-        duration_seconds: String(LISTEN_AUDIO_DURATION_SECONDS),
-        file: { name: audio.name, mimeType: audioType, buffer: audioBuffer },
-      },
-    });
-    if (uploaded.status() !== 200) {
-      throw new Error(`audio upload failed: ${uploaded.status()} ${await uploaded.text()}`);
-    }
-    const withAudio = (await uploaded.json()) as EpisodeBody;
-    expect(withAudio.audio?.duration_seconds).toBe(LISTEN_AUDIO_DURATION_SECONDS);
-
-    const chapters = await api.put(`/api/v1/episodes/${episode.id}/chapters`, {
-      data: {
-        version: "1.2.0",
-        chapters: chapterTitles[index].map((title, chapterIndex) => ({
-          startTime: chapterStarts[chapterIndex],
-          endTime: chapterStarts[chapterIndex] + 30,
-          title,
-          toc: true,
-        })),
-      },
-    });
-    expect(chapters.status()).toBe(200);
-    episodes.push(episode);
-  }
-
-  for (const episode of episodes.slice(0, 2)) {
-    const published = await api.post(`/api/v1/episodes/${episode.id}/publish`);
-    expect(published.status()).toBe(200);
-  }
-
-  return { series, episodes };
-}
-
-/** Reads the listener progress row of one episode, if any. */
-async function readProgress(
-  api: APIRequestContext,
-  episodeId: string,
-): Promise<ProgressRow | undefined> {
-  const response = await api.get("/api/v1/listening/progress");
-  expect(response.status()).toBe(200);
-  const body = (await response.json()) as { progress: ProgressRow[] };
-  return body.progress.find((row) => row.episode_id === episodeId);
-}
-
-test("listener journey", async ({ page, request }) => {
+test("listener journey", async ({ page }) => {
   const shots = new ScreenshotRecorder(page, "listener", 2);
   recorder = shots;
 
-  const { series, episodes } = await seedSeries(request);
-  const firstEpisode = episodes[0];
-  const firstChapter = chapterTitles[0][0];
-  const thirdChapter = chapterTitles[0][2];
-  const fourthChapter = chapterTitles[0][3];
-
   await test.step("open the library", async () => {
     await page.goto("/");
+    await page.evaluate(() => window.localStorage.removeItem("podcast.player.progress"));
+    await page.reload();
+
     await expect(page.getByRole("heading", { level: 1, name: "Listen" })).toBeVisible();
-    await expect(
-      page.getByRole("link", { name: new RegExp(escapeRegExp(seriesTitle)) }),
-    ).toBeVisible();
-    // The local listener is shared by the whole stack, so only the seeded
-    // series is guaranteed to have no saved position.
-    await expect(
-      page.getByRole("button", { name: new RegExp(`^Resume ${escapeRegExp(seriesTitle)}`) }),
-    ).toHaveCount(0);
+    await expect(page.getByRole("link", { name: new RegExp(seriesTitle) })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Continue listening" })).toHaveCount(0);
 
     await shots.capture(
       "library",
       "Listener library",
-      "Mobile library showing the seeded series; it has no Continue listening entry because it was never played.",
+      "Mobile library with the Harbour Lights series and no Continue listening entry before playback.",
     );
   });
 
   await test.step("open the series", async () => {
-    await page.getByRole("link", { name: new RegExp(escapeRegExp(seriesTitle)) }).click();
-    await expect(page).toHaveURL(/\/series\/[0-9a-f-]{36}$/);
+    await page.getByRole("link", { name: new RegExp(seriesTitle) }).click();
+    await expect(page).toHaveURL(new RegExp(`/series/${seriesSlug}$`));
     await expect(page.getByRole("heading", { level: 1, name: seriesTitle })).toBeVisible();
 
     const episodeList = page.getByRole("list", { name: `Episodes of ${seriesTitle}` });
-    await expect(episodeList.getByRole("listitem")).toHaveCount(2);
-    await expect(page.getByText(`/feeds/${seriesSlug}.xml`)).toBeVisible();
-    await expect(page.getByText(episodeTitles[2])).toHaveCount(0);
+    await expect(episodeList.getByRole("listitem")).toHaveCount(3);
+    await expect(page.getByText("RSS", { exact: false })).toHaveCount(0);
+    await expect(page.getByText(episodeTitles[2])).toBeVisible();
 
     await shots.capture(
       "series",
       "Series detail",
-      "Series page with the cover, the absolute RSS feed URL and the two published episodes; the draft episode is absent.",
+      "Series page with the cover, the description and the three chapters-bearing episodes; there is no RSS panel.",
     );
   });
 
   await test.step("play episode 1", async () => {
-    await page.getByRole("button", { name: `Play episode 1: ${firstEpisode.title}` }).click();
+    await page.getByRole("button", { name: `Play episode 1: ${episodeTitles[0]}` }).click();
     const miniPlayer = page.getByRole("region", { name: "Mini player" });
     await expect(miniPlayer).toBeVisible();
     await expect(miniPlayer.getByRole("button", { name: "Pause" })).toBeVisible();
@@ -211,10 +88,10 @@ test("listener journey", async ({ page, request }) => {
   });
 
   await test.step("open the full player", async () => {
-    await page.getByLabel(`Open player: ${firstEpisode.title}`).click();
+    await page.getByLabel(`Open player: ${episodeTitles[0]}`).click();
     await expect(page).toHaveURL(/\/play$/);
     await expect(page.getByText("Chapter 1 of 4", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 2, name: firstChapter })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: chapterTitles[0] })).toBeVisible();
 
     const slider = page.getByRole("slider", { name: "Playback position" });
     await expect(slider).toBeVisible();
@@ -230,9 +107,9 @@ test("listener journey", async ({ page, request }) => {
   });
 
   await test.step("jump to chapter 3", async () => {
-    await page.getByRole("button", { name: `Chapter 3: ${thirdChapter}` }).click();
+    await page.getByRole("button", { name: `Chapter 3: ${chapterTitles[2]}` }).click();
     await expect(page.getByText("Chapter 3 of 4", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 2, name: thirdChapter })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: chapterTitles[2] })).toBeVisible();
 
     const slider = page.getByRole("slider", { name: "Playback position" });
     await expect
@@ -249,7 +126,7 @@ test("listener journey", async ({ page, request }) => {
   await test.step("next chapter", async () => {
     await page.getByRole("button", { name: "Next chapter" }).click();
     await expect(page.getByText("Chapter 4 of 4", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 2, name: fourthChapter })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: chapterTitles[3] })).toBeVisible();
 
     const slider = page.getByRole("slider", { name: "Playback position" });
     await expect
@@ -292,7 +169,7 @@ test("listener journey", async ({ page, request }) => {
     await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
 
     await expect
-      .poll(async () => (await readProgress(request, firstEpisode.id))?.position_seconds ?? 0, {
+      .poll(async () => (await readProgress(page, episodeId))?.position_seconds ?? 0, {
         timeout: 20_000,
       })
       .toBeGreaterThan(0);
@@ -300,11 +177,11 @@ test("listener journey", async ({ page, request }) => {
     await shots.capture(
       "paused",
       "Playback paused",
-      "Playback paused; the position was saved to GET /api/v1/listening/progress.",
+      "Playback paused; the position was saved in this browser's localStorage.",
     );
   });
 
-  const savedPosition = (await readProgress(request, firstEpisode.id))?.position_seconds ?? 0;
+  const savedPosition = (await readProgress(page, episodeId))?.position_seconds ?? 0;
   expect(savedPosition).toBeGreaterThan(chapterStarts[3]);
 
   await test.step("reload the library", async () => {
@@ -312,7 +189,7 @@ test("listener journey", async ({ page, request }) => {
     await expect(page.getByRole("heading", { name: "Continue listening" })).toBeVisible();
 
     const continueCard = page.getByRole("button", {
-      name: `Resume ${seriesTitle} episode 1: ${firstEpisode.title}`,
+      name: `Resume ${seriesTitle} episode 1: ${episodeTitles[0]}`,
     });
     await expect(continueCard).toBeVisible();
     await expect(continueCard).toBeEnabled();
@@ -329,7 +206,7 @@ test("listener journey", async ({ page, request }) => {
   await test.step("resume from the continue card", async () => {
     await page
       .getByRole("button", {
-        name: `Resume ${seriesTitle} episode 1: ${firstEpisode.title}`,
+        name: `Resume ${seriesTitle} episode 1: ${episodeTitles[0]}`,
       })
       .click();
     await expect(page).toHaveURL(/\/play$/);
@@ -362,57 +239,26 @@ test("listener journey", async ({ page, request }) => {
   });
 
   await test.step("mark episode 1 as played", async () => {
-    await page.goto(`/series/${series.id}`);
+    await page.goto(`/series/${seriesSlug}`);
     await page.getByRole("button", { name: "More actions for episode 1" }).click();
     await page.getByRole("menuitem", { name: "Mark as played" }).click();
 
     const firstRow = page
       .getByRole("list", { name: `Episodes of ${seriesTitle}` })
       .getByRole("listitem")
-      .filter({ hasText: firstEpisode.title });
+      .filter({ hasText: episodeTitles[0] });
     await expect(firstRow.getByText("Played", { exact: true })).toBeVisible();
 
     await shots.capture(
       "mark-played",
       "Episode marked as played",
-      "The series overflow menu marked episode 1 as played and its row now shows Played.",
-    );
-  });
-
-  await test.step("fetch the RSS feed", async () => {
-    const origin = new URL(baseURL).origin;
-    const feedResponse = await request.get(`/feeds/${seriesSlug}.xml`);
-    expect(feedResponse.status()).toBe(200);
-    const feed = await feedResponse.text();
-
-    expect((feed.match(/<item>/g) ?? []).length).toBe(2);
-    expect(feed).toContain(episodeTitles[0]);
-    expect(feed).toContain(episodeTitles[1]);
-    expect(feed).not.toContain(episodeTitles[2]);
-
-    for (const episode of episodes.slice(0, 2)) {
-      expect(feed).toContain(
-        `<enclosure url="${origin}/api/v1/episodes/${episode.id}/audio"`,
-      );
-      expect(feed).toContain(
-        `<podcast:chapters url="${origin}/api/v1/episodes/${episode.id}/chapters"`,
-      );
-    }
-
-    await page.goto(`/feeds/${seriesSlug}.xml`);
-    await expect(page.locator("body")).toContainText(`<rss`);
-    await expect(page.locator("body")).toContainText(episodeTitles[0]);
-
-    await shots.capture(
-      "rss-feed",
-      "RSS feed",
-      "The series feed fetched from the browser returns two items with absolute enclosure and podcast:chapters URLs; the draft episode is absent.",
+      "The series overflow menu marked episode 1 as played; the state lives in this browser's localStorage.",
     );
   });
 
   await test.step("check the desktop two-column player", async () => {
-    await page.goto(`/series/${series.id}`);
-    await page.getByRole("button", { name: firstEpisode.title, exact: true }).click();
+    await page.goto(`/series/${seriesSlug}`);
+    await page.getByRole("button", { name: episodeTitles[0], exact: true }).click();
     await expect(page).toHaveURL(/\/play$/);
 
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -433,11 +279,4 @@ test("listener journey", async ({ page, request }) => {
       "At 1280x800 the player switches to two columns: artwork and controls on the left, chapters and up next on the right.",
     );
   });
-
-  // Remove the seeded catalog data so the shared stack stays tidy.
-  for (const episode of episodes) {
-    await request.delete(`/api/v1/listening/progress/${episode.id}`);
-    await request.delete(`/api/v1/episodes/${episode.id}`);
-  }
-  await request.delete(`/api/v1/series/${series.id}`);
 });

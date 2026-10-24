@@ -1,71 +1,28 @@
 import { HttpResponse, http } from "msw/http";
-import type { ChapterDTO, Episode, EpisodeSummary, Progress, Series } from "../api/types";
+import type { Catalog, ChapterDTO, Episode, Progress, Series, SiteInfo } from "../api/types";
 
 const NOW = "2026-01-01T00:00:00.000Z";
-
-export interface RecordedRequest {
-  method: string;
-  path: string;
-  body: unknown;
-}
+const PROGRESS_STORAGE_KEY = "podcast.player.progress";
 
 interface TestStore {
+  site: SiteInfo;
   series: Series[];
-  episodes: Episode[];
-  progress: Map<string, Progress>;
-  requests: RecordedRequest[];
-  nextSeriesId: number;
-  nextEpisodeId: number;
+  chapters: Map<string, ChapterDTO[]>;
   clock: number;
 }
 
 export const store: TestStore = {
+  site: { title: "Podcasts", description: "Test shows", author: "Test Author" },
   series: [],
-  episodes: [],
-  progress: new Map(),
-  requests: [],
-  nextSeriesId: 1,
-  nextEpisodeId: 1,
+  chapters: new Map(),
   clock: 0,
 };
 
 export function resetStore(): void {
+  store.site = { title: "Podcasts", description: "Test shows", author: "Test Author" };
   store.series = [];
-  store.episodes = [];
-  store.progress = new Map();
-  store.requests = [];
-  store.nextSeriesId = 1;
-  store.nextEpisodeId = 1;
+  store.chapters.clear();
   store.clock = 0;
-}
-
-function nextTimestamp(): string {
-  store.clock += 1;
-  return new Date(Date.parse(NOW) + store.clock * 1000).toISOString();
-}
-
-export function seedSeries(overrides: Partial<Series> = {}): Series {
-  const number = store.nextSeriesId++;
-  const slug = overrides.slug ?? `test-series-${number}`;
-  const series: Series = {
-    id: `series-${number}`,
-    slug,
-    title: "Test Series",
-    author: "Test Author",
-    description: "A series used by tests.",
-    accent_color: "#7A9CFF",
-    cover_url: null,
-    feed_url: `/feeds/${slug}.xml`,
-    episode_count: 0,
-    published_count: 0,
-    total_duration_seconds: 0,
-    created_at: NOW,
-    updated_at: NOW,
-    version: 1,
-    ...overrides,
-  };
-  store.series.push(series);
-  return series;
 }
 
 const DEFAULT_CHAPTERS: ChapterDTO[] = [
@@ -73,226 +30,130 @@ const DEFAULT_CHAPTERS: ChapterDTO[] = [
   { start_seconds: 30, title: "Main topic", toc: true },
 ];
 
-export function seedEpisode(seriesId: string, overrides: Partial<Episode> = {}): Episode {
-  const number =
-    overrides.number ?? store.episodes.filter((e) => e.series_id === seriesId).length + 1;
-  const id = overrides.id ?? `episode-${store.nextEpisodeId}`;
-  const numericId = Number.parseInt(id.replace(/\D/g, ""), 10);
-  store.nextEpisodeId = Number.isFinite(numericId)
-    ? Math.max(store.nextEpisodeId, numericId + 1)
-    : store.nextEpisodeId + 1;
+export interface SeriesSeed extends Partial<Omit<Series, "episodes">> {
+  id?: string;
+}
+
+export function seedSeries(seed: SeriesSeed = {}): Series {
+  const number = store.series.length + 1;
+  const slug = seed.slug ?? seed.id ?? `test-series-${number}`;
+  const series: Series = {
+    title: "Test Series",
+    author: "Test Author",
+    description: "A series used by tests.",
+    accent_color: "#7A9CFF",
+    cover_url: null,
+    episode_count: 0,
+    total_duration_seconds: 0,
+    ...seed,
+    slug,
+    episodes: [],
+  };
+  store.series.push(series);
+  return series;
+}
+
+export interface AudioSeed {
+  url: string;
+  duration_seconds: number;
+}
+
+export interface EpisodeSeed extends Partial<Omit<Episode, "chapters">> {
+  id?: string;
+  audio?: AudioSeed | null;
+  chapters?: ChapterDTO[];
+}
+
+export function seedEpisode(seriesSlug: string, seed: EpisodeSeed = {}): Episode {
+  const series = store.series.find((item) => item.slug === seriesSlug);
+  if (!series) throw new Error(`unknown series ${seriesSlug}`);
+
+  const number = seed.number ?? series.episodes.length + 1;
+  const slug = seed.slug ?? seed.id ?? `episode-${number}`;
   const audio =
-    overrides.audio === null
-      ? null
-      : {
-          url: `/api/v1/episodes/${id}/audio`,
-          content_type: "audio/mpeg",
-          size_bytes: 2048,
-          duration_seconds: 100,
-          original_name: "episode.mp3",
-          ...overrides.audio,
-        };
+    seed.audio === undefined ? { url: `/media/${slug}.mp3`, duration_seconds: 100 } : seed.audio;
+  const chapters = seed.chapters ?? DEFAULT_CHAPTERS;
+  const { audio: _audio, chapters: _chapters, ...rest } = seed;
+
   const episode: Episode = {
-    id,
-    series_id: seriesId,
     number,
     title: `Episode ${number}`,
     description: "",
-    status: "published",
-    chapters: DEFAULT_CHAPTERS,
     published_at: NOW,
-    created_at: NOW,
-    updated_at: NOW,
-    version: 1,
-    ...overrides,
-    audio,
+    duration_seconds: audio?.duration_seconds ?? 0,
+    audio_url: audio?.url ?? "",
+    ...rest,
+    id: `${seriesSlug}/${slug}`,
+    slug,
+    series_slug: seriesSlug,
+    chapter_count: chapters.length,
   };
-  store.episodes.push(episode);
+
+  store.chapters.set(episode.id, chapters);
+  series.episodes.push(episode);
+  series.episode_count = series.episodes.length;
+  series.total_duration_seconds = series.episodes.reduce(
+    (total, item) => total + item.duration_seconds,
+    0,
+  );
   return episode;
 }
 
 export function seedProgress(episodeId: string, overrides: Partial<Progress> = {}): Progress {
+  store.clock += 1;
   const progress: Progress = {
     episode_id: episodeId,
     position_seconds: 20,
     completed: false,
-    updated_at: nextTimestamp(),
+    updated_at: new Date(Date.parse(NOW) + store.clock * 1000).toISOString(),
     ...overrides,
   };
-  store.progress.set(episodeId, progress);
+  const raw = window.localStorage.getItem(PROGRESS_STORAGE_KEY);
+  const map = raw ? (JSON.parse(raw) as Record<string, Progress>) : {};
+  map[episodeId] = progress;
+  window.localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(map));
   return progress;
 }
 
-function seriesView(series: Series): Series {
-  const episodes = store.episodes.filter((episode) => episode.series_id === series.id);
+function catalogView(): Catalog {
   return {
-    ...series,
-    episode_count: episodes.length,
-    published_count: episodes.filter((episode) => episode.status === "published").length,
-    total_duration_seconds: episodes.reduce(
-      (total, episode) => total + (episode.audio?.duration_seconds ?? 0),
-      0,
-    ),
+    site: store.site,
+    series: store.series.map((series) => ({
+      ...series,
+      episode_count: series.episodes.length,
+      total_duration_seconds: series.episodes.reduce(
+        (total, episode) => total + episode.duration_seconds,
+        0,
+      ),
+      episodes: [...series.episodes].sort((left, right) => left.number - right.number),
+    })),
   };
 }
 
-export function findSeries(id: string): Series | undefined {
-  return store.series.find((series) => series.id === id);
+function rawChapters(chapters: ChapterDTO[]) {
+  return chapters.map((chapter) => ({
+    startTime: chapter.start_seconds,
+    endTime: chapter.end_seconds ?? undefined,
+    title: chapter.title,
+    url: chapter.url ?? undefined,
+    img: chapter.image_url ?? undefined,
+    toc: chapter.toc,
+  }));
 }
 
-export function findEpisode(id: string): Episode | undefined {
-  return store.episodes.find((episode) => episode.id === id);
-}
-
-function findPublishedEpisode(id: string): Episode | undefined {
-  const episode = findEpisode(id);
-  return episode?.status === "published" ? episode : undefined;
-}
-
-export function episodeSummary(episode: Episode, series: Series): EpisodeSummary {
-  return {
-    id: episode.id,
-    number: episode.number,
-    title: episode.title,
-    duration_seconds: episode.audio?.duration_seconds ?? 0,
-    chapter_count: episode.chapters.length,
-    series_id: series.id,
-    series_title: series.title,
-    series_slug: series.slug,
-    accent_color: series.accent_color,
-    cover_url: series.cover_url,
-  };
-}
-
-function apiError(status: number, code: string, message: string) {
-  return HttpResponse.json({ code, message }, { status });
-}
-
-function record(request: Request, body: unknown): void {
-  store.requests.push({
-    method: request.method,
-    path: new URL(request.url).pathname,
-    body,
-  });
-}
-
-interface ProgressInput {
-  position_seconds?: unknown;
-  completed?: unknown;
+function episodeDetail(episode: Episode) {
+  const { chapter_count: _chapterCount, ...rest } = episode;
+  return { ...rest, chapters: rawChapters(store.chapters.get(episode.id) ?? []) };
 }
 
 export const handlers = [
-  http.get("/api/v1/series", () => {
-    return HttpResponse.json({ series: store.series.map(seriesView) });
-  }),
+  http.get("*/data/index.json", () => HttpResponse.json(catalogView())),
 
-  http.get("/api/v1/series/:id", ({ params }) => {
-    const series = findSeries(String(params.id));
-    if (!series) return apiError(404, "SERIES_NOT_FOUND", "The series was not found.");
-    return HttpResponse.json(seriesView(series));
-  }),
-
-  http.get("/api/v1/series/:id/cover", () => {
-    return new HttpResponse(new Uint8Array([137, 80, 78, 71]), {
-      headers: { "Content-Type": "image/png" },
-    });
-  }),
-
-  http.get("/api/v1/series/:id/episodes", ({ request, params }) => {
-    const status = new URL(request.url).searchParams.get("status");
-    const list = store.episodes
-      .filter(
-        (episode) =>
-          episode.series_id === String(params.id) && (status === null || episode.status === status),
-      )
-      .sort((left, right) => left.number - right.number);
-    return HttpResponse.json({ episodes: list });
-  }),
-
-  http.get("/api/v1/episodes/:id", ({ params }) => {
-    const episode = findEpisode(String(params.id));
-    if (!episode) return apiError(404, "EPISODE_NOT_FOUND", "The episode was not found.");
-    return HttpResponse.json(episode);
-  }),
-
-  http.get("/api/v1/listening/progress", () => {
-    const progress = [...store.progress.values()].sort((left, right) =>
-      right.updated_at.localeCompare(left.updated_at),
-    );
-    return HttpResponse.json({ progress });
-  }),
-
-  http.get("/api/v1/listening/continue", ({ request }) => {
-    const limitParam = Number(new URL(request.url).searchParams.get("limit") ?? 5);
-    const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 5;
-    const rows = [...store.progress.values()]
-      .filter((row) => !row.completed && row.position_seconds > 0)
-      .sort((left, right) => right.updated_at.localeCompare(left.updated_at));
-    const items = [];
-    for (const progress of rows) {
-      const episode = findPublishedEpisode(progress.episode_id);
-      if (!episode) continue;
-      const series = findSeries(episode.series_id);
-      if (!series) continue;
-      items.push({ progress, episode: episodeSummary(episode, series) });
-      if (items.length >= limit) break;
-    }
-    return HttpResponse.json({ items });
-  }),
-
-  http.put("/api/v1/listening/progress/:episodeId", async ({ request, params }) => {
-    const body = (await request.json()) as ProgressInput;
-    record(request, body);
-    const episode = findPublishedEpisode(String(params.episodeId));
-    if (!episode) return apiError(404, "EPISODE_NOT_FOUND", "The episode was not found.");
-
-    const requested = Number(body.position_seconds);
-    if (!Number.isFinite(requested) || requested < 0) {
-      return apiError(422, "INVALID_POSITION", "The position must be a positive number.");
-    }
-
-    const duration = episode.audio?.duration_seconds ?? 0;
-    let position = requested;
-    let completed = false;
-    if (body.completed === true) {
-      position = duration;
-      completed = true;
-    } else if (body.completed === false) {
-      completed = false;
-    } else {
-      completed = duration > 0 && position >= duration - 2;
-    }
-    if (duration > 0) position = Math.min(position, duration);
-
-    const progress: Progress = {
-      episode_id: episode.id,
-      position_seconds: position,
-      completed,
-      updated_at: nextTimestamp(),
-    };
-    store.progress.set(episode.id, progress);
-    return HttpResponse.json(progress);
-  }),
-
-  http.post("/api/v1/listening/progress/:episodeId/played", ({ request, params }) => {
-    record(request, null);
-    const episode = findPublishedEpisode(String(params.episodeId));
-    if (!episode) return apiError(404, "EPISODE_NOT_FOUND", "The episode was not found.");
-    const progress: Progress = {
-      episode_id: episode.id,
-      position_seconds: episode.audio?.duration_seconds ?? 0,
-      completed: true,
-      updated_at: nextTimestamp(),
-    };
-    store.progress.set(episode.id, progress);
-    return HttpResponse.json(progress);
-  }),
-
-  http.delete("/api/v1/listening/progress/:episodeId", ({ request, params }) => {
-    record(request, null);
-    const episode = findPublishedEpisode(String(params.episodeId));
-    if (!episode) return apiError(404, "EPISODE_NOT_FOUND", "The episode was not found.");
-    store.progress.delete(episode.id);
-    return new HttpResponse(null, { status: 204 });
+  http.get("*/data/episodes/:series/:file", ({ params }) => {
+    const series = store.series.find((item) => item.slug === String(params.series));
+    const slug = String(params.file).replace(/\.json$/, "");
+    const episode = series?.episodes.find((item) => item.slug === slug);
+    if (!episode) return new HttpResponse(null, { status: 404 });
+    return HttpResponse.json(episodeDetail(episode));
   }),
 ];
