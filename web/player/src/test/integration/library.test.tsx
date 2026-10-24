@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw/http";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { seedEpisode, seedProgress, seedSeries } from "../handlers";
 import { renderApp } from "../renderApp";
 import { server } from "../server";
@@ -10,9 +10,7 @@ describe("library", () => {
     renderApp("/");
 
     expect(await screen.findByText("Nothing to listen to yet")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Add a series and an episode JSON to the content directory/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Paste the RSS feed URL of a podcast/)).toBeInTheDocument();
   });
 
   it("lists series with their episode and unplayed counts", async () => {
@@ -76,19 +74,56 @@ describe("library", () => {
     expect(await screen.findByRole("heading", { name: "The long one" })).toBeInTheDocument();
   });
 
-  it("shows the load error and recovers on retry", async () => {
-    const series = seedSeries({ slug: "alpha-show", title: "Alpha Show" });
-    seedEpisode(series.slug, { id: "episode-1", title: "First" });
-    server.use(
-      http.get("*/data/index.json", () => HttpResponse.json({ message: "boom" }, { status: 500 })),
-    );
+  it("adds a podcast from its feed URL and keeps it in localStorage", async () => {
+    server.use(http.get("https://feeds.example/show.xml", () => rss("Fresh Show")));
 
     const { user } = renderApp("/");
-    expect(await screen.findByText("Could not load your library")).toBeInTheDocument();
-    expect(screen.getByText("The site returned an unexpected response (500).")).toBeInTheDocument();
+    await user.type(
+      await screen.findByLabelText("Podcast feed URL"),
+      "https://feeds.example/show.xml",
+    );
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
-    server.resetHandlers();
-    await user.click(screen.getByRole("button", { name: "Try again" }));
-    expect(await screen.findByText("Alpha Show")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /Fresh Show/ })).toBeInTheDocument();
+    expect(screen.getByText(/2 episodes/)).toBeInTheDocument();
+    expect(window.localStorage.getItem("podcast.player.library")).toContain("Fresh Show");
+  });
+
+  it("shows an error when the URL is not a podcast feed", async () => {
+    server.use(http.get("https://feeds.example/bad.xml", () => HttpResponse.text("<html></html>")));
+
+    const { user } = renderApp("/");
+    await user.type(
+      await screen.findByLabelText("Podcast feed URL"),
+      "https://feeds.example/bad.xml",
+    );
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByText("Could not add this podcast")).toBeInTheDocument();
+    expect(window.localStorage.getItem("podcast.player.library")).toBeNull();
+  });
+
+  it("removes a podcast from its page", async () => {
+    const series = seedSeries({ slug: "alpha-show", title: "Alpha Show" });
+    seedEpisode(series.slug, { id: "episode-1" });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const { user } = renderApp("/series/alpha-show");
+    await user.click(await screen.findByRole("button", { name: "Remove" }));
+
+    expect(await screen.findByText("Nothing to listen to yet")).toBeInTheDocument();
   });
 });
+
+function rss(title: string): Response {
+  return HttpResponse.text(
+    `<?xml version="1.0"?><rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel>
+      <title>${title}</title><itunes:author>Ada</itunes:author>
+      <item><title>One</title><guid>g1</guid><pubDate>Mon, 05 Jan 2026 10:00:00 GMT</pubDate>
+        <enclosure url="https://cdn.example/1.mp3" type="audio/mpeg"/><itunes:duration>10:00</itunes:duration></item>
+      <item><title>Two</title><guid>g2</guid><pubDate>Mon, 12 Jan 2026 10:00:00 GMT</pubDate>
+        <enclosure url="https://cdn.example/2.mp3" type="audio/mpeg"/></item>
+    </channel></rss>`,
+    { headers: { "content-type": "application/rss+xml" } },
+  );
+}

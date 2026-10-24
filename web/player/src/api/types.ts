@@ -27,6 +27,8 @@ export interface Episode {
   duration_seconds: number;
   chapter_count: number;
   audio_url: string;
+  /** Podcasting 2.0 chapters document, fetched lazily when the episode plays. */
+  chapters_url?: string | null;
 }
 
 /** The full episode document, including its chapters. */

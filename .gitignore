@@ -1,6 +1,5 @@
 web/player/node_modules/
 web/player/dist/
-web/player/public/
 
 tests/e2e-ui/node_modules/
 tests/e2e-ui/screenshots/

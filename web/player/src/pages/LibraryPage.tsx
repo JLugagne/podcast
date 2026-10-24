@@ -1,3 +1,4 @@
+import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { errorMessage } from "../api/client";
 import type { ContinueItem, Progress, Series } from "../api/types";
@@ -7,9 +8,11 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { Icon } from "../components/Icon";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { useCatalog, useEpisode } from "../hooks/catalog";
+import { useAddPodcast } from "../hooks/library";
 import { progressByEpisode, useContinueListening, useProgressList } from "../hooks/listening";
 import { chapterIndexAt, sortChapters } from "../lib/chapters";
 import { formatMinutesLeft, pluralize } from "../lib/format";
+import { getProxy, setProxy } from "../lib/library";
 import { usePlayback } from "../playback/PlaybackProvider";
 
 function ContinueCard({ item }: { item: ContinueItem }) {
@@ -108,6 +111,58 @@ function SeriesCard({ series, progress }: { series: Series; progress: Map<string
   );
 }
 
+function AddPodcastForm() {
+  const [url, setUrl] = useState("");
+  const [proxy, setProxyValue] = useState(getProxy);
+  const add = useAddPodcast();
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setProxy(proxy);
+    add.mutate(url, { onSuccess: () => setUrl("") });
+  };
+
+  return (
+    <form className="add-form" onSubmit={submit} aria-label="Add a podcast">
+      <label className="add-form-label" htmlFor="feed-url">
+        Podcast feed URL
+      </label>
+      <div className="add-form-row">
+        <input
+          id="feed-url"
+          className="add-form-input"
+          type="url"
+          inputMode="url"
+          placeholder="https://example.com/feed.xml"
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          required
+        />
+        <button type="submit" className="btn btn-primary" disabled={add.isPending}>
+          {add.isPending ? "Adding…" : "Add"}
+        </button>
+      </div>
+      {add.isError ? (
+        <ErrorBanner title="Could not add this podcast" message={errorMessage(add.error)} />
+      ) : null}
+      <details className="add-form-advanced">
+        <summary>Feed blocked by the browser?</summary>
+        <label className="add-form-label" htmlFor="cors-proxy">
+          CORS proxy prefix (optional)
+        </label>
+        <input
+          id="cors-proxy"
+          className="add-form-input"
+          type="url"
+          placeholder="https://my-proxy.example.com/?url="
+          value={proxy}
+          onChange={(event) => setProxyValue(event.target.value)}
+        />
+      </details>
+    </form>
+  );
+}
+
 export function LibraryPage() {
   const catalogQuery = useCatalog();
   const progressQuery = useProgressList();
@@ -149,8 +204,10 @@ export function LibraryPage() {
     <div className="page">
       <header className="library-header">
         <h1 className="page-title">Listen</h1>
-        <p className="page-subtitle">Episodes from your series.</p>
+        <p className="page-subtitle">Your podcasts, saved on this device.</p>
       </header>
+
+      <AddPodcastForm />
 
       {series.length === 0 ? (
         <div className="empty-state">
@@ -158,9 +215,7 @@ export function LibraryPage() {
             <Icon name="list" size={26} />
           </span>
           <h2>Nothing to listen to yet</h2>
-          <p>
-            Add a series and an episode JSON to the content directory, then build the site again.
-          </p>
+          <p>Paste the RSS feed URL of a podcast above to add it to your library.</p>
         </div>
       ) : (
         <>

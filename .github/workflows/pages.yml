@@ -30,10 +30,6 @@ jobs:
         working-directory: web/player
         run: npm ci
 
-      - name: Validate content
-        working-directory: web/player
-        run: npm run check
-
       - name: Run tests
         working-directory: web/player
         run: npm test -- --run

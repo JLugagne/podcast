@@ -7,6 +7,8 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { Icon } from "../components/Icon";
 import { LoadingBlock } from "../components/LoadingBlock";
 import { useCatalog } from "../hooks/catalog";
+import { deleteDownload, startDownload, useDownloads } from "../hooks/downloads";
+import { useRefreshPodcast, useRemovePodcast } from "../hooks/library";
 import {
   progressByEpisode,
   useMarkPlayed,
@@ -24,6 +26,9 @@ export function SeriesPage() {
   const navigate = useNavigate();
   const markPlayed = useMarkPlayed();
   const markUnplayed = useMarkUnplayed();
+  const downloads = useDownloads();
+  const refresh = useRefreshPodcast();
+  const remove = useRemovePodcast();
 
   if (catalogQuery.isPending) {
     return (
@@ -153,6 +158,29 @@ export function SeriesPage() {
               <span>{primaryLabel}</span>
             </button>
           ) : null}
+          <div className="series-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={refresh.isPending}
+              onClick={() => refresh.mutate(series.slug)}
+            >
+              {refresh.isPending ? "Refreshing…" : "Refresh"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                if (!window.confirm(`Remove ${series.title} from your library?`)) return;
+                remove.mutate(series.slug, { onSuccess: () => navigate("/") });
+              }}
+            >
+              Remove
+            </button>
+          </div>
+          {refresh.isError ? (
+            <ErrorBanner title="Could not refresh" message={errorMessage(refresh.error)} />
+          ) : null}
         </div>
       </header>
 
@@ -165,7 +193,7 @@ export function SeriesPage() {
         {episodes.length === 0 ? (
           <div className="empty-state">
             <h2>No episodes</h2>
-            <p>Add an episode JSON to this series to see it here.</p>
+            <p>This feed has no playable episodes.</p>
           </div>
         ) : (
           <ul className="episode-list" aria-label={`Episodes of ${series.title}`}>
@@ -180,6 +208,11 @@ export function SeriesPage() {
                 onOpenPlayer={() => openPlayer(episode, savedPosition(episode))}
                 onMarkPlayed={() => markPlayed.mutate(episode)}
                 onMarkUnplayed={() => markUnplayed.mutate(episode.id)}
+                downloaded={downloads.downloaded.has(episode.id)}
+                downloading={downloads.active.get(episode.id)}
+                downloadError={downloads.errors.get(episode.id)}
+                onDownload={() => void startDownload(episode)}
+                onRemoveDownload={() => void deleteDownload(episode.id)}
               />
             ))}
           </ul>

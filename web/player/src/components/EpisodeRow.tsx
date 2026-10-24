@@ -13,6 +13,12 @@ export interface EpisodeRowProps {
   onOpenPlayer: () => void;
   onMarkPlayed: () => void;
   onMarkUnplayed: () => void;
+  downloaded: boolean;
+  /** Download progress 0..1 (or -1 when unknown) while a download runs. */
+  downloading?: number;
+  downloadError?: string;
+  onDownload: () => void;
+  onRemoveDownload: () => void;
 }
 
 function stateLabel(progress: Progress | undefined, duration: number): string {
@@ -33,6 +39,11 @@ export function EpisodeRow({
   onOpenPlayer,
   onMarkPlayed,
   onMarkUnplayed,
+  downloaded,
+  downloading,
+  downloadError,
+  onDownload,
+  onRemoveDownload,
 }: EpisodeRowProps) {
   const duration = episode.duration_seconds;
   const positionSeconds = progress?.position_seconds ?? 0;
@@ -60,10 +71,35 @@ export function EpisodeRow({
         <p className="episode-row-meta">
           <span>{formatDuration(duration)}</span>
           <span aria-hidden="true">·</span>
-          <span>{pluralize(episode.chapter_count, "chapter")}</span>
-          <span aria-hidden="true">·</span>
+          {episode.chapter_count > 0 ? (
+            <>
+              <span>{pluralize(episode.chapter_count, "chapter")}</span>
+              <span aria-hidden="true">·</span>
+            </>
+          ) : null}
           <span>{stateLabel(progress, duration)}</span>
+          {downloaded ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>Downloaded</span>
+            </>
+          ) : null}
+          {downloading !== undefined ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>
+                {downloading >= 0 && downloading < 1
+                  ? `Downloading ${Math.round(downloading * 100)}%`
+                  : "Downloading…"}
+              </span>
+            </>
+          ) : null}
         </p>
+        {downloadError ? (
+          <p className="episode-row-error" role="alert">
+            {downloadError}
+          </p>
+        ) : null}
         <div className="progress-thin" aria-hidden="true">
           <span className="progress-thin-fill" style={{ width: `${percent}%` }} />
         </div>
@@ -95,6 +131,19 @@ export function EpisodeRow({
               }}
             >
               Mark as unplayed
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              disabled={downloading !== undefined}
+              onClick={() => {
+                if (downloaded) onRemoveDownload();
+                else onDownload();
+                close();
+              }}
+            >
+              {downloaded ? "Remove download" : "Download for offline"}
             </button>
           </>
         )}

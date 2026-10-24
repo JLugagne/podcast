@@ -1,8 +1,10 @@
 import { HttpResponse, http } from "msw/http";
-import type { Catalog, ChapterDTO, Episode, Progress, Series, SiteInfo } from "../api/types";
+import type { ChapterDTO, Episode, Progress, Series, SiteInfo } from "../api/types";
 
 const NOW = "2026-01-01T00:00:00.000Z";
 const PROGRESS_STORAGE_KEY = "podcast.player.progress";
+const LIBRARY_STORAGE_KEY = "podcast.player.library";
+const CHAPTERS_ORIGIN = "https://chapters.test";
 
 interface TestStore {
   site: SiteInfo;
@@ -50,6 +52,7 @@ export function seedSeries(seed: SeriesSeed = {}): Series {
     episodes: [],
   };
   store.series.push(series);
+  persistLibrary();
   return series;
 }
 
@@ -87,6 +90,7 @@ export function seedEpisode(seriesSlug: string, seed: EpisodeSeed = {}): Episode
     slug,
     series_slug: seriesSlug,
     chapter_count: chapters.length,
+    chapters_url: `${CHAPTERS_ORIGIN}/${seriesSlug}/${slug}.json`,
   };
 
   store.chapters.set(episode.id, chapters);
@@ -96,7 +100,18 @@ export function seedEpisode(seriesSlug: string, seed: EpisodeSeed = {}): Episode
     (total, item) => total + item.duration_seconds,
     0,
   );
+  persistLibrary();
   return episode;
+}
+
+/** Writes the seeded series where the app reads its subscriptions from. */
+function persistLibrary(): void {
+  const library = store.series.map((series) => ({
+    ...series,
+    feed_url: `https://feeds.test/${series.slug}.xml`,
+    refreshed_at: NOW,
+  }));
+  window.localStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(library));
 }
 
 export function seedProgress(episodeId: string, overrides: Partial<Progress> = {}): Progress {
@@ -115,21 +130,6 @@ export function seedProgress(episodeId: string, overrides: Partial<Progress> = {
   return progress;
 }
 
-function catalogView(): Catalog {
-  return {
-    site: store.site,
-    series: store.series.map((series) => ({
-      ...series,
-      episode_count: series.episodes.length,
-      total_duration_seconds: series.episodes.reduce(
-        (total, episode) => total + episode.duration_seconds,
-        0,
-      ),
-      episodes: [...series.episodes].sort((left, right) => left.number - right.number),
-    })),
-  };
-}
-
 function rawChapters(chapters: ChapterDTO[]) {
   return chapters.map((chapter) => ({
     startTime: chapter.start_seconds,
@@ -141,19 +141,11 @@ function rawChapters(chapters: ChapterDTO[]) {
   }));
 }
 
-function episodeDetail(episode: Episode) {
-  const { chapter_count: _chapterCount, ...rest } = episode;
-  return { ...rest, chapters: rawChapters(store.chapters.get(episode.id) ?? []) };
-}
-
 export const handlers = [
-  http.get("*/data/index.json", () => HttpResponse.json(catalogView())),
-
-  http.get("*/data/episodes/:series/:file", ({ params }) => {
-    const series = store.series.find((item) => item.slug === String(params.series));
-    const slug = String(params.file).replace(/\.json$/, "");
-    const episode = series?.episodes.find((item) => item.slug === slug);
-    if (!episode) return new HttpResponse(null, { status: 404 });
-    return HttpResponse.json(episodeDetail(episode));
+  http.get(`${CHAPTERS_ORIGIN}/:series/:file`, ({ params }) => {
+    const id = `${String(params.series)}/${String(params.file).replace(/\.json$/, "")}`;
+    const chapters = store.chapters.get(id);
+    if (!chapters) return new HttpResponse(null, { status: 404 });
+    return HttpResponse.json({ version: "1.2.0", chapters: rawChapters(chapters) });
   }),
 ];

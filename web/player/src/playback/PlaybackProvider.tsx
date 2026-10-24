@@ -19,6 +19,7 @@ import {
   previousChapterTarget,
   sortChapters,
 } from "../lib/chapters";
+import { downloadedObjectURL } from "../lib/downloads";
 import {
   clearMediaSessionMetadata,
   setMediaSessionHandlers,
@@ -116,6 +117,7 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
   const [announcement, setAnnouncement] = useState("");
 
   const episodeRef = useRef<Episode | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
   const seriesRef = useRef<PlaybackSeries | null>(null);
   const chaptersRef = useRef<ChapterDTO[]>([]);
   const positionRef = useRef(0);
@@ -210,13 +212,24 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
       setError(null);
       if (sleepTimerRef.current.kind === "chapter") setSleepTimer({ kind: "off" });
 
-      engine.load(resolveAudioURL(nextEpisode.audio_url), startAt);
-      engine.setPlaybackRate(rateRef.current);
       setPlayingState(true);
-      void engine.play().catch(() => {
-        setPlayingState(false);
-        setError("The audio could not be played.");
-      });
+      void downloadedObjectURL(nextEpisode.id)
+        .catch(() => null)
+        .then((offlineUrl) => {
+          // A newer start() call may have replaced this episode while resolving.
+          if (episodeRef.current?.id !== nextEpisode.id) return;
+          if (offlineUrl) {
+            if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+            objectUrlRef.current = offlineUrl;
+          }
+          engine.load(offlineUrl ?? resolveAudioURL(nextEpisode.audio_url), startAt);
+          engine.setPlaybackRate(rateRef.current);
+          return engine.play();
+        })
+        .catch(() => {
+          setPlayingState(false);
+          setError("The audio could not be played.");
+        });
       void loadChapters(nextEpisode, knownDuration);
     },
     [engine, updatePosition, setDurationState, setSleepTimer, setPlayingState, loadChapters],

@@ -998,3 +998,46 @@
     gap: var(--space-4);
   }
 }
+
+/* Add-podcast form and series actions */
+.add-form {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.add-form-label {
+  font-size: 0.8125rem;
+  color: var(--text-muted, #a9adb8);
+}
+.add-form-row {
+  display: flex;
+  gap: 8px;
+}
+.add-form-input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+}
+.add-form-advanced {
+  font-size: 0.875rem;
+}
+.add-form-advanced summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+.series-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.episode-row-error {
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+  color: #ff8a8a;
+}

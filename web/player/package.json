@@ -4,13 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/content.mjs --out public --no-fallback && vite",
-    "build": "tsc -b && vite build && node scripts/content.mjs",
+    "dev": "vite",
+    "build": "tsc -b && vite build && node scripts/finalize.mjs",
     "typecheck": "tsc -b",
     "lint": "biome check .",
     "test": "vitest",
-    "check": "node scripts/content.mjs --check",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "icons": "node scripts/icons.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "5.3.0",

@@ -37,3 +37,11 @@ createRoot(rootElement).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {
+      // The app still works online without the worker.
+    });
+  });
+}
