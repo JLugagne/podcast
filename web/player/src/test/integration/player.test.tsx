@@ -250,6 +250,30 @@ describe("player", () => {
     expect(screen.getByText("Chapter 1 of 2")).toBeInTheDocument();
   });
 
+  it("restarts a finished episode from the beginning and clears the played markers", async () => {
+    const view = await renderPlayer();
+    const { first } = view;
+    await view.user.click(screen.getByRole("checkbox", { name: "Autoplay next episode" }));
+    act(() => {
+      view.engine.emitTime(95, 100);
+    });
+    act(() => {
+      view.engine.emitEnded();
+    });
+    await waitFor(() => expect(progressFor(first)?.completed).toBe(true));
+    const playsBefore = view.engine.playCalls;
+
+    await view.user.click(screen.getByRole("button", { name: "Restart from the beginning" }));
+
+    expect(view.engine.seekCalls.at(-1)).toBe(0);
+    expect(view.engine.playCalls).toBe(playsBefore + 1);
+    expect(progressFor(first)).toBeUndefined();
+    expect(slider()).toHaveAttribute("aria-valuenow", "0");
+    expect(screen.getByText("Chapter 1 of 2")).toBeInTheDocument();
+    const chapterList = screen.getByRole("list", { name: "Chapters" });
+    expect(chapterList.querySelector(".chapter-row.is-played")).toBeNull();
+  });
+
   it("does not auto-play when the toggle is off", async () => {
     const view = await renderPlayer();
     const { first } = view;

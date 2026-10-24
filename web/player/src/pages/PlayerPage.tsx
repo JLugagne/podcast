@@ -51,7 +51,8 @@ export function PlayerPage() {
     autoPlayNext,
     error,
   } = playback;
-  const { toggle, skip, seekTo, previousChapter, nextChapter, setAutoPlayNext, start } = playback;
+  const { toggle, skip, seekTo, previousChapter, nextChapter, restart, setAutoPlayNext, start } =
+    playback;
   const navigate = useNavigate();
   const location = useLocation();
   const catalogQuery = useCatalog();
@@ -211,6 +212,9 @@ export function PlayerPage() {
               <h2 id="chapters-heading" className="section-title">
                 Chapters
               </h2>
+              <button type="button" className="btn btn-secondary btn-small" onClick={restart}>
+                Restart from the beginning
+              </button>
             </div>
             <ChapterList
               chapters={chapters}

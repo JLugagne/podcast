@@ -26,7 +26,7 @@ import {
   setMediaSessionMetadata,
   setMediaSessionPositionState,
 } from "../lib/mediaSession";
-import { getProgress, markPlayed, recordProgress } from "../lib/progress";
+import { getProgress, markPlayed, markUnplayed, recordProgress } from "../lib/progress";
 import { PROGRESS_SAVE_INTERVAL_MS, ProgressThrottle } from "../lib/progressThrottle";
 import {
   type SleepTimer,
@@ -66,6 +66,7 @@ export interface PlaybackContextValue {
   seekTo: (seconds: number) => void;
   skip: (deltaSeconds: number) => void;
   nextChapter: () => void;
+  restart: () => void;
   previousChapter: () => void;
   setRate: (rate: number) => void;
   setAutoPlayNext: (value: boolean) => void;
@@ -275,6 +276,26 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
       setError("The audio could not be played.");
     });
   }, [engine, setPlayingState, saveProgress]);
+
+  /** Plays the current episode again from 0:00 and forgets that it was played. */
+  const restart = useCallback(() => {
+    const current = episodeRef.current;
+    if (!current) return;
+    engine.seek(0);
+    updatePosition(0);
+    const list = chaptersRef.current;
+    lastChapterIndexRef.current = chapterIndexAt(list, 0);
+    announceChapter(lastChapterIndexRef.current, list);
+    markUnplayed(current.id);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.listeningAll });
+    if (playingRef.current) return;
+    setPlayingState(true);
+    setError(null);
+    void engine.play().catch(() => {
+      setPlayingState(false);
+      setError("The audio could not be played.");
+    });
+  }, [engine, updatePosition, announceChapter, queryClient, setPlayingState]);
 
   const nextChapter = useCallback(() => {
     const target = nextChapterTarget(chaptersRef.current, positionRef.current);
@@ -518,6 +539,7 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
       seekTo,
       skip,
       nextChapter,
+      restart,
       previousChapter,
       setRate,
       setAutoPlayNext,
@@ -542,6 +564,7 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
       seekTo,
       skip,
       nextChapter,
+      restart,
       previousChapter,
       setRate,
       setAutoPlayNext,

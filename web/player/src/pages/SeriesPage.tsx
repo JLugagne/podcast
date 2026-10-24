@@ -208,6 +208,10 @@ export function SeriesPage() {
                 onOpenPlayer={() => openPlayer(episode, savedPosition(episode))}
                 onMarkPlayed={() => markPlayed.mutate(episode)}
                 onMarkUnplayed={() => markUnplayed.mutate(episode.id)}
+                onRestart={() => {
+                  markUnplayed.mutate(episode.id);
+                  startPlayback(episode, 0);
+                }}
                 downloaded={downloads.downloaded.has(episode.id)}
                 downloading={downloads.active.get(episode.id)}
                 downloadError={downloads.errors.get(episode.id)}

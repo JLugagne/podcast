@@ -1,12 +1,21 @@
 import { expect, type Page, test } from "@playwright/test";
+import {
+  chapterStarts,
+  episodes,
+  FEED_URL,
+  type HarbourHost,
+  installHarbourHost,
+  seriesTitle,
+} from "../fixtures/harbour";
 import { resetScreenshots, ScreenshotRecorder } from "../support/screenshots";
 
-const seriesSlug = "harbour-lights";
-const seriesTitle = "Harbour Lights";
-const episodeTitles = ["The harbour at dawn", "Tides and tables", "Night watch"];
-const episodeId = `${seriesSlug}/01-the-harbour-at-dawn`;
-const chapterStarts = [0, 30, 60, 90];
-const chapterTitles = ["Opening bell", "Harbour at dawn", "Deep current", "Finale"];
+const episodeTitles = episodes.map((episode) => episode.title);
+const chapterTitles = episodes[0].chapters;
+
+// The slug and episode ids derive from the feed URL and GUIDs; they are read
+// back from the saved library once the podcast is added.
+let seriesSlug = "";
+let episodeId = "";
 
 interface StoredProgress {
   position_seconds: number;
@@ -27,6 +36,14 @@ test.afterAll(() => {
   recorder?.writeManifest();
 });
 
+/** Reads the subscriptions saved in this browser's localStorage. */
+async function readLibrary(page: Page): Promise<{ slug: string; episodes: { id: string; number: number }[] }[]> {
+  return page.evaluate(() => {
+    const raw = window.localStorage.getItem("podcast.player.library");
+    return raw ? JSON.parse(raw) : [];
+  });
+}
+
 /** Reads one episode's progress from this browser's localStorage. */
 async function readProgress(page: Page, id: string): Promise<StoredProgress | null> {
   return page.evaluate((episode) => {
@@ -37,24 +54,49 @@ async function readProgress(page: Page, id: string): Promise<StoredProgress | nu
   }, id);
 }
 
-test("listener journey", async ({ page }) => {
+test("listener journey", async ({ page, context }) => {
+  const host: HarbourHost = await installHarbourHost(context);
   const shots = new ScreenshotRecorder(page, "listener", 2);
   recorder = shots;
 
-  await test.step("open the library", async () => {
+  await test.step("open an empty library", async () => {
     await page.goto("/");
-    await page.evaluate(() => window.localStorage.removeItem("podcast.player.progress"));
+    await page.evaluate(() => window.localStorage.clear());
     await page.reload();
 
     await expect(page.getByRole("heading", { level: 1, name: "Listen" })).toBeVisible();
+    await expect(page.getByText("Nothing to listen to yet")).toBeVisible();
+
+    await shots.capture(
+      "empty-library",
+      "Empty library",
+      "First launch: the library is empty and asks for the RSS feed URL of a podcast.",
+    );
+  });
+
+  await test.step("add the podcast from its feed URL", async () => {
+    await page.getByLabel("Podcast feed URL").fill(FEED_URL);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+
     await expect(page.getByRole("link", { name: new RegExp(seriesTitle) })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Continue listening" })).toHaveCount(0);
 
+    const library = await readLibrary(page);
+    expect(library).toHaveLength(1);
+    seriesSlug = library[0].slug;
+    episodeId = library[0].episodes.find((episode) => episode.number === 1)?.id ?? "";
+    expect(episodeId).not.toBe("");
+
     await shots.capture(
       "library",
-      "Listener library",
-      "Mobile library with the Harbour Lights series and no Continue listening entry before playback.",
+      "Library with a podcast",
+      "The podcast added from its feed URL is listed in the library; there is no Continue listening entry before playback.",
     );
+  });
+
+  await test.step("keep the podcast after a reload", async () => {
+    await page.reload();
+    await expect(page.getByRole("link", { name: new RegExp(seriesTitle) })).toBeVisible();
   });
 
   await test.step("open the series", async () => {
@@ -64,13 +106,12 @@ test("listener journey", async ({ page }) => {
 
     const episodeList = page.getByRole("list", { name: `Episodes of ${seriesTitle}` });
     await expect(episodeList.getByRole("listitem")).toHaveCount(3);
-    await expect(page.getByText("RSS", { exact: false })).toHaveCount(0);
     await expect(page.getByText(episodeTitles[2])).toBeVisible();
 
     await shots.capture(
       "series",
       "Series detail",
-      "Series page with the cover, the description and the three chapters-bearing episodes; there is no RSS panel.",
+      "Series page with the cover, the description and the three episodes read from the feed.",
     );
   });
 
@@ -253,6 +294,62 @@ test("listener journey", async ({ page }) => {
       "mark-played",
       "Episode marked as played",
       "The series overflow menu marked episode 1 as played; the state lives in this browser's localStorage.",
+    );
+  });
+
+  await test.step("download an episode and play it without the network", async () => {
+    await page.goto(`/series/${seriesSlug}`);
+    await page.getByRole("button", { name: "More actions for episode 2" }).click();
+    await page.getByRole("menuitem", { name: "Download for offline" }).click();
+
+    const secondRow = page
+      .getByRole("list", { name: `Episodes of ${seriesTitle}` })
+      .getByRole("listitem")
+      .filter({ hasText: episodeTitles[1] });
+    await expect(secondRow.getByText("Downloaded", { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "More actions for episode 2" }).click();
+    await expect(page.getByRole("menuitem", { name: "Remove download" })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    // From now on the host no longer serves audio: playback must use the download.
+    host.audioBlocked = true;
+    const requestsBefore = host.audioRequests;
+    await page.getByRole("button", { name: `Play episode 2: ${episodeTitles[1]}` }).click();
+    const miniPlayer = page.getByRole("region", { name: "Mini player" });
+    await expect(miniPlayer.getByRole("button", { name: "Pause" })).toBeVisible();
+    await expect(page.getByText("The audio could not be played")).toHaveCount(0);
+    await page.getByLabel(`Open player: ${episodeTitles[1]}`).click();
+    const slider = page.getByRole("slider", { name: "Playback position" });
+    await expect
+      .poll(async () => Number(await slider.getAttribute("aria-valuenow")), { timeout: 20_000 })
+      .toBeGreaterThan(0);
+    expect(host.audioRequests).toBe(requestsBefore);
+
+    await shots.capture(
+      "offline-playback",
+      "Offline playback",
+      "Episode 2 was downloaded, the host then refused audio requests, and it still plays from the offline copy.",
+    );
+    host.audioBlocked = false;
+  });
+
+  await test.step("restart from the beginning", async () => {
+    await page.goto(`/series/${seriesSlug}`);
+    await page.getByRole("button", { name: episodeTitles[1], exact: true }).click();
+    await expect(page).toHaveURL(/\/play$/);
+    await page.getByRole("button", { name: `Chapter 3: ${episodes[1].chapters[2]}` }).click();
+    await expect(page.getByText("Chapter 3 of 4", { exact: true })).toBeVisible();
+    await expect(page.locator(".chapter-row.is-played").first()).toBeVisible();
+
+    await page.getByRole("button", { name: "Restart from the beginning" }).click();
+    await expect(page.getByText("Chapter 1 of 4", { exact: true })).toBeVisible();
+    await expect(page.locator(".chapter-row.is-played")).toHaveCount(0);
+
+    await shots.capture(
+      "restart",
+      "Restart from the beginning",
+      "Restart from the beginning put playback back at 0:00 and cleared the played markers on the chapters.",
     );
   });
 

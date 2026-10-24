@@ -1041,3 +1041,9 @@
   font-size: 0.8125rem;
   color: #ff8a8a;
 }
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  min-height: 0;
+}

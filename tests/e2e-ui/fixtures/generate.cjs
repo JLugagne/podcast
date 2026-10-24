@@ -2,23 +2,16 @@ const { execFileSync } = require("node:child_process");
 const { existsSync, mkdirSync } = require("node:fs");
 const path = require("node:path");
 
-/** Duration of the generated tone, in seconds (matches the e2e content). */
+/** Duration of the generated tone, in seconds (matches the feed fixture). */
 const AUDIO_DURATION_SECONDS = 120;
 
-const CONTENT_MEDIA_DIR = path.resolve(
-  __dirname,
-  "..",
-  "content",
-  "series",
-  "harbour-lights",
-  "media",
-);
-const AUDIO_PATH = path.join(CONTENT_MEDIA_DIR, "tone-120s.mp3");
+const MEDIA_DIR = path.resolve(__dirname, "generated");
+const AUDIO_PATH = path.join(MEDIA_DIR, "tone-120s.mp3");
 
-/** Generates the audio fixture referenced by the e2e content tree. */
+/** Generates the audio fixture served by the fake podcast host. */
 function ensureFixtures() {
   if (existsSync(AUDIO_PATH)) return;
-  mkdirSync(CONTENT_MEDIA_DIR, { recursive: true });
+  mkdirSync(MEDIA_DIR, { recursive: true });
   try {
     execFileSync(
       "ffmpeg",
@@ -48,6 +41,6 @@ function ensureFixtures() {
   }
 }
 
-module.exports = { AUDIO_DURATION_SECONDS, ensureFixtures };
+module.exports = { AUDIO_DURATION_SECONDS, AUDIO_PATH, ensureFixtures };
 
 if (require.main === module) ensureFixtures();

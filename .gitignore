@@ -6,7 +6,6 @@ tests/e2e-ui/screenshots/
 tests/e2e-ui/test-results/
 tests/e2e-ui/playwright-report/
 tests/e2e-ui/fixtures/generated/
-tests/e2e-ui/content/series/*/media/
 
 # Local Claude Code configuration
 /.claude/

@@ -13,6 +13,7 @@ export interface EpisodeRowProps {
   onOpenPlayer: () => void;
   onMarkPlayed: () => void;
   onMarkUnplayed: () => void;
+  onRestart: () => void;
   downloaded: boolean;
   /** Download progress 0..1 (or -1 when unknown) while a download runs. */
   downloading?: number;
@@ -39,6 +40,7 @@ export function EpisodeRow({
   onOpenPlayer,
   onMarkPlayed,
   onMarkUnplayed,
+  onRestart,
   downloaded,
   downloading,
   downloadError,
@@ -131,6 +133,17 @@ export function EpisodeRow({
               }}
             >
               Mark as unplayed
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              onClick={() => {
+                onRestart();
+                close();
+              }}
+            >
+              Restart from the beginning
             </button>
             <button
               type="button"

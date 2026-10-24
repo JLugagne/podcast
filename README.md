@@ -55,5 +55,4 @@ web/player/src/lib/downloads.ts   offline audio (Cache API)
 web/player/public/                manifest, service worker, icons
 ```
 
-The Playwright suite in `tests/e2e-ui` still targets the previous
-content-driven site and has not been migrated to the feed-based app yet.
+The Playwright journey lives in `tests/e2e-ui` (`make e2e-ui`, needs `ffmpeg`). It serves a fake podcast host (feed, chapters, audio) through request interception.
