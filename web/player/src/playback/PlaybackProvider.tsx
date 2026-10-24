@@ -12,6 +12,7 @@ import {
 import { getCatalog, getEpisode, resolveAudioURL } from "../api/client";
 import type { Catalog, ChapterDTO, Episode, PlaybackSeries } from "../api/types";
 import { queryKeys } from "../hooks/keys";
+import { t } from "../i18n";
 import {
   chapterEnd,
   chapterIndexAt,
@@ -152,7 +153,9 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
 
   const announceChapter = useCallback((index: number, list: ChapterDTO[]) => {
     const chapter = list[index];
-    setAnnouncement(chapter ? `Now playing chapter ${index + 1}: ${chapter.title}` : "");
+    setAnnouncement(
+      chapter ? t("nowPlayingChapter", { number: index + 1, title: chapter.title }) : "",
+    );
   }, []);
 
   const saveProgress = useCallback((value: number, options: { force?: boolean } = {}) => {
@@ -192,7 +195,7 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
   const start = useCallback(
     (nextEpisode: Episode, nextSeries: PlaybackSeries, positionSeconds = 0) => {
       if (!nextEpisode.audio_url) {
-        setError("This episode has no audio file.");
+        setError(t("noAudioFile"));
         return;
       }
       const startAt = Math.max(0, positionSeconds);
@@ -229,7 +232,7 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
         })
         .catch(() => {
           setPlayingState(false);
-          setError("The audio could not be played.");
+          setError(t("audioCouldNotPlay"));
         });
       void loadChapters(nextEpisode, knownDuration);
     },
@@ -273,7 +276,7 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
     setError(null);
     void engine.play().catch(() => {
       setPlayingState(false);
-      setError("The audio could not be played.");
+      setError(t("audioCouldNotPlay"));
     });
   }, [engine, setPlayingState, saveProgress]);
 
@@ -293,7 +296,7 @@ export function PlaybackProvider({ children, engine: injectedEngine }: PlaybackP
     setError(null);
     void engine.play().catch(() => {
       setPlayingState(false);
-      setError("The audio could not be played.");
+      setError(t("audioCouldNotPlay"));
     });
   }, [engine, updatePosition, announceChapter, queryClient, setPlayingState]);
 

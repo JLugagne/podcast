@@ -1,5 +1,6 @@
 import type { Episode, Progress } from "../api/types";
-import { formatDuration, formatMinutesLeft, pluralize } from "../lib/format";
+import { useI18n } from "../i18n";
+import { formatDuration, formatMinutesLeft } from "../lib/format";
 import { Icon } from "./Icon";
 import { IconButton } from "./IconButton";
 import { Menu } from "./Menu";
@@ -22,14 +23,6 @@ export interface EpisodeRowProps {
   onRemoveDownload: () => void;
 }
 
-function stateLabel(progress: Progress | undefined, duration: number): string {
-  if (progress?.completed) return "Played";
-  if (progress && progress.position_seconds > 0) {
-    return formatMinutesLeft(Math.max(0, duration - progress.position_seconds));
-  }
-  return "New";
-}
-
 /** One row of the episode list of a series. */
 export function EpisodeRow({
   episode,
@@ -47,10 +40,20 @@ export function EpisodeRow({
   onDownload,
   onRemoveDownload,
 }: EpisodeRowProps) {
+  const { t } = useI18n();
+  const stateLabel = (row: Progress | undefined, length: number): string => {
+    if (row?.completed) return t("played");
+    if (row && row.position_seconds > 0) {
+      return formatMinutesLeft(Math.max(0, length - row.position_seconds));
+    }
+    return t("newEpisode");
+  };
   const duration = episode.duration_seconds;
   const positionSeconds = progress?.position_seconds ?? 0;
   const percent = duration > 0 ? Math.min(100, (positionSeconds / duration) * 100) : 0;
-  const label = `${playing ? "Pause" : "Play"} episode ${episode.number}: ${episode.title}`;
+  const label = playing
+    ? t("pauseEpisode", { number: episode.number, title: episode.title })
+    : t("playEpisode", { number: episode.number, title: episode.title });
 
   return (
     <li className={["episode-row", isCurrent ? "is-current" : ""].filter(Boolean).join(" ")}>
@@ -75,7 +78,7 @@ export function EpisodeRow({
           <span aria-hidden="true">·</span>
           {episode.chapter_count > 0 ? (
             <>
-              <span>{pluralize(episode.chapter_count, "chapter")}</span>
+              <span>{t("chapters", { count: episode.chapter_count })}</span>
               <span aria-hidden="true">·</span>
             </>
           ) : null}
@@ -83,7 +86,7 @@ export function EpisodeRow({
           {downloaded ? (
             <>
               <span aria-hidden="true">·</span>
-              <span>Downloaded</span>
+              <span>{t("downloaded")}</span>
             </>
           ) : null}
           {downloading !== undefined ? (
@@ -91,8 +94,8 @@ export function EpisodeRow({
               <span aria-hidden="true">·</span>
               <span>
                 {downloading >= 0 && downloading < 1
-                  ? `Downloading ${Math.round(downloading * 100)}%`
-                  : "Downloading…"}
+                  ? t("downloadingPercent", { percent: Math.round(downloading * 100) })
+                  : t("downloading")}
               </span>
             </>
           ) : null}
@@ -107,7 +110,7 @@ export function EpisodeRow({
         </div>
       </div>
       <Menu
-        label={`More actions for episode ${episode.number}`}
+        label={t("moreActions", { number: episode.number })}
         trigger={<Icon name="more" size={20} />}
       >
         {(close) => (
@@ -121,7 +124,7 @@ export function EpisodeRow({
                 close();
               }}
             >
-              Mark as played
+              {t("markPlayed")}
             </button>
             <button
               type="button"
@@ -132,7 +135,7 @@ export function EpisodeRow({
                 close();
               }}
             >
-              Mark as unplayed
+              {t("markUnplayed")}
             </button>
             <button
               type="button"
@@ -143,7 +146,7 @@ export function EpisodeRow({
                 close();
               }}
             >
-              Restart from the beginning
+              {t("restartFromBeginning")}
             </button>
             <button
               type="button"
@@ -156,7 +159,7 @@ export function EpisodeRow({
                 close();
               }}
             >
-              {downloaded ? "Remove download" : "Download for offline"}
+              {downloaded ? t("removeDownload") : t("downloadForOffline")}
             </button>
           </>
         )}

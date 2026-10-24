@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, configure } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
+import { setLocale } from "../i18n";
 import { resetStore } from "./handlers";
 import { server } from "./server";
 
@@ -18,6 +19,7 @@ afterEach(async () => {
   server.resetHandlers();
   resetStore();
   window.localStorage.clear();
+  setLocale("en");
   Reflect.deleteProperty(navigator, "mediaSession");
   Reflect.deleteProperty(navigator, "clipboard");
   Reflect.deleteProperty(globalThis, "MediaMetadata");

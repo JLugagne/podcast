@@ -15,10 +15,12 @@ import {
   useMarkUnplayed,
   useProgressList,
 } from "../hooks/listening";
-import { formatDuration, pluralize } from "../lib/format";
+import { useI18n } from "../i18n";
+import { formatDuration } from "../lib/format";
 import { usePlayback } from "../playback/PlaybackProvider";
 
 export function SeriesPage() {
+  const { t } = useI18n();
   const { slug } = useParams<{ slug: string }>();
   const catalogQuery = useCatalog();
   const progressQuery = useProgressList();
@@ -33,7 +35,7 @@ export function SeriesPage() {
   if (catalogQuery.isPending) {
     return (
       <div className="page">
-        <LoadingBlock label="Loading series…" />
+        <LoadingBlock label={t("loadingSeries")} />
       </div>
     );
   }
@@ -41,16 +43,13 @@ export function SeriesPage() {
   if (catalogQuery.isError) {
     return (
       <div className="page">
-        <ErrorBanner
-          title="Could not load this series"
-          message={errorMessage(catalogQuery.error)}
-        />
+        <ErrorBanner title={t("couldNotLoadSeries")} message={errorMessage(catalogQuery.error)} />
         <button
           type="button"
           className="btn btn-secondary mt-3"
           onClick={() => void catalogQuery.refetch()}
         >
-          Try again
+          {t("tryAgain")}
         </button>
       </div>
     );
@@ -61,10 +60,10 @@ export function SeriesPage() {
     return (
       <div className="page">
         <div className="empty-state">
-          <h2>Series not found</h2>
-          <p>This series does not exist or has been removed.</p>
+          <h2>{t("seriesNotFound")}</h2>
+          <p>{t("seriesNotFoundBody")}</p>
           <Link to="/" className="btn btn-primary">
-            Back to the library
+            {t("backToLibrary")}
           </Link>
         </div>
       </div>
@@ -91,7 +90,7 @@ export function SeriesPage() {
       ),
     );
   const resumeEpisode = inProgress[0] ?? latest;
-  const primaryLabel = inProgress.length > 0 ? "Resume" : "Play latest";
+  const primaryLabel = inProgress.length > 0 ? t("resume") : t("playLatest");
 
   const savedPosition = (episode: Episode): number => {
     const row: Progress | undefined = progress.get(episode.id);
@@ -118,14 +117,18 @@ export function SeriesPage() {
 
   const primaryPosition = resumeEpisode ? savedPosition(resumeEpisode) : 0;
   const primaryLabelText = resumeEpisode
-    ? `${primaryLabel}: Episode ${resumeEpisode.number}: ${resumeEpisode.title}`
+    ? t("resumeEpisodeLabel", {
+        action: primaryLabel,
+        number: resumeEpisode.number,
+        title: resumeEpisode.title,
+      })
     : primaryLabel;
 
   return (
     <div className="page series-page">
       <Link to="/" className="back-link">
         <Icon name="back" size={16} />
-        <span>Library</span>
+        <span>{t("libraryLink")}</span>
       </Link>
 
       <header className="series-header">
@@ -142,7 +145,7 @@ export function SeriesPage() {
           {series.author ? <p className="series-author">{series.author}</p> : null}
           {series.description ? <p className="series-description">{series.description}</p> : null}
           <p className="series-stats">
-            {pluralize(episodes.length, "episode")}
+            {t("episodes", { count: episodes.length })}
             {series.total_duration_seconds > 0
               ? ` · ${formatDuration(series.total_duration_seconds)}`
               : ""}
@@ -165,21 +168,21 @@ export function SeriesPage() {
               disabled={refresh.isPending}
               onClick={() => refresh.mutate(series.slug)}
             >
-              {refresh.isPending ? "Refreshing…" : "Refresh"}
+              {refresh.isPending ? t("refreshing") : t("refresh")}
             </button>
             <button
               type="button"
               className="btn btn-secondary"
               onClick={() => {
-                if (!window.confirm(`Remove ${series.title} from your library?`)) return;
+                if (!window.confirm(t("removeConfirm", { title: series.title }))) return;
                 remove.mutate(series.slug, { onSuccess: () => navigate("/") });
               }}
             >
-              Remove
+              {t("remove")}
             </button>
           </div>
           {refresh.isError ? (
-            <ErrorBanner title="Could not refresh" message={errorMessage(refresh.error)} />
+            <ErrorBanner title={t("couldNotRefresh")} message={errorMessage(refresh.error)} />
           ) : null}
         </div>
       </header>
@@ -187,16 +190,16 @@ export function SeriesPage() {
       <section className="section" aria-labelledby="episodes-heading">
         <div className="section-heading">
           <h2 id="episodes-heading" className="section-title">
-            Episodes
+            {t("episodesHeading")}
           </h2>
         </div>
         {episodes.length === 0 ? (
           <div className="empty-state">
-            <h2>No episodes</h2>
-            <p>This feed has no playable episodes.</p>
+            <h2>{t("noEpisodes")}</h2>
+            <p>{t("noPlayableEpisodes")}</p>
           </div>
         ) : (
-          <ul className="episode-list" aria-label={`Episodes of ${series.title}`}>
+          <ul className="episode-list" aria-label={t("episodesOf", { title: series.title })}>
             {episodes.map((episode) => (
               <EpisodeRow
                 key={episode.id}

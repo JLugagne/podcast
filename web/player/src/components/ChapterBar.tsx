@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from "react";
 import type { ChapterDTO } from "../api/types";
+import { useI18n } from "../i18n";
 import { chapterIndexAt, segmentFills, segmentWidths } from "../lib/chapters";
 import { formatDuration } from "../lib/format";
 
@@ -28,16 +29,24 @@ export function ChapterBar({
   duration,
   position,
   onSeek,
-  label = "Playback position",
+  label,
   compact = false,
   className,
 }: ChapterBarProps) {
+  const { t } = useI18n();
   const interactive = typeof onSeek === "function";
   const widths = segmentWidths(chapters, duration);
   const fills = segmentFills(chapters, duration, position);
   const index = chapterIndexAt(chapters, position);
-  const chapterText = index >= 0 ? `chapter ${index + 1}: ${chapters[index].title}` : "no chapter";
-  const valueText = `${formatDuration(position)} of ${formatDuration(duration)}, ${chapterText}`;
+  const chapterText =
+    index >= 0
+      ? t("chapterText", { number: index + 1, title: chapters[index].title })
+      : t("noChapterText");
+  const valueText = t("playbackPositionText", {
+    position: formatDuration(position),
+    duration: formatDuration(duration),
+    chapter: chapterText,
+  });
 
   const seekFromPoint = (clientX: number, element: HTMLElement) => {
     if (!onSeek || !(duration > 0)) return;
@@ -100,7 +109,7 @@ export function ChapterBar({
       className={classes}
       role="slider"
       tabIndex={0}
-      aria-label={label}
+      aria-label={label ?? t("playbackPosition")}
       aria-valuemin={0}
       aria-valuemax={Math.round(duration)}
       aria-valuenow={Math.round(position)}

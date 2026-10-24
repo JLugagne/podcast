@@ -1,3 +1,5 @@
+import { t } from "../i18n";
+
 export type SleepTimerOption = "off" | "15" | "30" | "45" | "60" | "chapter" | "episode";
 
 export type SleepTimer =
@@ -6,20 +8,35 @@ export type SleepTimer =
   | { kind: "chapter"; chapterIndex: number }
   | { kind: "episode" };
 
-export interface SleepTimerOptionDescriptor {
-  value: SleepTimerOption;
-  label: string;
-}
-
-export const SLEEP_TIMER_OPTIONS: SleepTimerOptionDescriptor[] = [
-  { value: "off", label: "Off" },
-  { value: "15", label: "15 minutes" },
-  { value: "30", label: "30 minutes" },
-  { value: "45", label: "45 minutes" },
-  { value: "60", label: "60 minutes" },
-  { value: "chapter", label: "End of chapter" },
-  { value: "episode", label: "End of episode" },
+export const SLEEP_TIMER_OPTIONS: SleepTimerOption[] = [
+  "off",
+  "15",
+  "30",
+  "45",
+  "60",
+  "chapter",
+  "episode",
 ];
+
+/** Label of one choice in the sleep timer menu. */
+export function sleepTimerOptionLabel(option: SleepTimerOption): string {
+  switch (option) {
+    case "off":
+      return t("sleepOff");
+    case "15":
+      return t("minutes15");
+    case "30":
+      return t("minutes30");
+    case "45":
+      return t("minutes45");
+    case "60":
+      return t("minutes60");
+    case "chapter":
+      return t("endOfChapter");
+    case "episode":
+      return t("endOfEpisode");
+  }
+}
 
 export const MINUTE_OPTIONS = [15, 30, 45, 60] as const;
 
@@ -82,12 +99,14 @@ export function shouldStopAtEpisodeEnd(timer: SleepTimer): boolean {
 export function sleepTimerLabel(timer: SleepTimer, remainingSeconds: number | null): string {
   switch (timer.kind) {
     case "minutes":
-      return `Sleep timer ${formatCountdown(remainingSeconds ?? timer.minutes * 60)}`;
+      return t("sleepTimer", {
+        time: formatCountdown(remainingSeconds ?? timer.minutes * 60),
+      });
     case "chapter":
-      return "Sleep timer end of chapter";
+      return t("sleepTimerChapter");
     case "episode":
-      return "Sleep timer end of episode";
+      return t("sleepTimerEpisode");
     default:
-      return "Sleep timer off";
+      return t("sleepTimerOff");
   }
 }

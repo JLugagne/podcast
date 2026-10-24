@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { ChapterDTO } from "../api/types";
+import { useI18n } from "../i18n";
 import { chapterEnd, chapterIndexAt, sortChapters } from "../lib/chapters";
 import { formatDuration } from "../lib/format";
 import { Icon } from "./Icon";
@@ -13,6 +14,7 @@ export interface ChapterListProps {
 
 /** Chapters of the current episode; the active chapter is highlighted. */
 export function ChapterList({ chapters, duration, position, onSelect }: ChapterListProps) {
+  const { t } = useI18n();
   const ordered = sortChapters(chapters);
   const activeIndex = chapterIndexAt(ordered, position);
   const activeRef = useRef<HTMLButtonElement | null>(null);
@@ -32,11 +34,11 @@ export function ChapterList({ chapters, duration, position, onSelect }: ChapterL
   }, [activeIndex]);
 
   if (ordered.length === 0) {
-    return <p className="muted text-small">This episode has no chapters.</p>;
+    return <p className="muted text-small">{t("noChaptersEpisode")}</p>;
   }
 
   return (
-    <ol className="chapter-list" aria-label="Chapters" ref={listRef}>
+    <ol className="chapter-list" aria-label={t("chaptersHeading")} ref={listRef}>
       {ordered.map((chapter, index) => {
         const end = chapterEnd(ordered, index, duration);
         const played = position >= end;
@@ -49,7 +51,7 @@ export function ChapterList({ chapters, duration, position, onSelect }: ChapterL
               className={["chapter-row", active ? "is-active" : "", played ? "is-played" : ""]
                 .filter(Boolean)
                 .join(" ")}
-              aria-label={`Chapter ${index + 1}: ${chapter.title}`}
+              aria-label={t("chapterAria", { number: index + 1, title: chapter.title })}
               aria-current={active ? "true" : undefined}
               onClick={() => onSelect(chapter.start_seconds)}
             >

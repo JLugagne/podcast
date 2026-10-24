@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { readStorage, writeStorage } from "./storage";
 
 /** Name of the Cache Storage bucket that holds downloaded audio. */
@@ -44,15 +45,15 @@ export async function downloadEpisode(
   audioUrl: string,
   onProgress?: (fraction: number) => void,
 ): Promise<void> {
-  if (!isOfflineSupported()) throw new DownloadError("Offline storage is not available here.");
+  if (!isOfflineSupported()) throw new DownloadError(t("offlineUnavailable"));
   let response: Response;
   try {
     response = await fetch(audioUrl);
   } catch {
-    throw new DownloadError("The audio server blocks downloads from the browser (CORS).");
+    throw new DownloadError(t("downloadCorsBlocked"));
   }
   if (!response.ok || !response.body) {
-    throw new DownloadError(`The audio server answered ${response.status}.`);
+    throw new DownloadError(t("audioServerAnswered", { status: response.status }));
   }
 
   const total = Number(response.headers.get("content-length")) || 0;
@@ -81,7 +82,7 @@ export async function downloadEpisode(
       new Response(bytes, { headers: { "content-type": type } }),
     );
   } catch {
-    throw new DownloadError("Not enough storage space to keep this episode.");
+    throw new DownloadError(t("notEnoughStorage"));
   }
   writeIndex([...new Set([...listDownloaded(), episodeId])]);
   onProgress?.(1);

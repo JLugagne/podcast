@@ -1011,11 +1011,15 @@
 }
 .add-form-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+}
+.add-form-row .btn {
+  flex: none;
 }
 .add-form-input {
   flex: 1;
-  min-width: 0;
+  min-width: 160px;
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.16);

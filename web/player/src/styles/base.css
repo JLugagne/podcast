@@ -85,6 +85,19 @@ select {
   padding: 0.8rem var(--page-gutter);
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.language-picker {
+  flex: none;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
 }
 
 .brand {
@@ -144,6 +157,13 @@ select {
   gap: var(--space-3);
   align-items: flex-start;
   justify-content: space-between;
+}
+
+.library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .section {

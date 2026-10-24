@@ -1,3 +1,5 @@
+import { t } from "../i18n";
+
 /** Error raised when the static data cannot be loaded. */
 export class DataError extends Error {
   constructor(message: string) {
@@ -8,5 +10,5 @@ export class DataError extends Error {
 
 export function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
-  return "An unexpected error occurred.";
+  return t("unexpectedError");
 }

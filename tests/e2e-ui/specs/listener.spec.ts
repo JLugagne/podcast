@@ -70,11 +70,12 @@ test("listener journey", async ({ page, context }) => {
     await shots.capture(
       "empty-library",
       "Empty library",
-      "First launch: the library is empty and asks for the RSS feed URL of a podcast.",
+      "First launch: the library is empty and offers to add a first podcast; the feed form only appears when asked for.",
     );
   });
 
   await test.step("add the podcast from its feed URL", async () => {
+    await page.getByRole("button", { name: "Add podcast", exact: true }).click();
     await page.getByLabel("Podcast feed URL").fill(FEED_URL);
     await page.getByRole("button", { name: "Add", exact: true }).click();
 

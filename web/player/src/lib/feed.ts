@@ -1,4 +1,5 @@
 import type { Episode, Series } from "../api/types";
+import { t } from "../i18n";
 
 /** A subscription as persisted in localStorage. */
 export interface StoredSeries extends Series {
@@ -132,9 +133,9 @@ function parseDate(raw: string): string {
  */
 export function parseFeed(xml: string, feedUrl: string): StoredSeries {
   const doc = new DOMParser().parseFromString(xml, "application/xml");
-  if (doc.querySelector("parsererror")) throw new FeedError("This URL is not a valid XML feed.");
+  if (doc.querySelector("parsererror")) throw new FeedError(t("invalidXmlFeed"));
   const channel = doc.querySelector("rss > channel");
-  if (!channel) throw new FeedError("This XML document is not a podcast RSS feed.");
+  if (!channel) throw new FeedError(t("notPodcastFeed"));
 
   const title = childText(channel, "title") || feedUrl;
   const slug = seriesSlugFor(title, feedUrl);
@@ -161,7 +162,7 @@ export function parseFeed(xml: string, feedUrl: string): StoredSeries {
     const number = Number.parseInt(childText(item, "episode", ITUNES_NS), 10);
     drafts.push({
       guid,
-      title: childText(item, "title") || "Untitled episode",
+      title: childText(item, "title") || t("untitledEpisode"),
       description: stripHtml(
         childText(item, "description") || childText(item, "summary", ITUNES_NS),
       ),
@@ -172,7 +173,7 @@ export function parseFeed(xml: string, feedUrl: string): StoredSeries {
       itunes_number: Number.isFinite(number) && number > 0 ? number : null,
     });
   }
-  if (drafts.length === 0) throw new FeedError("This feed has no playable episodes.");
+  if (drafts.length === 0) throw new FeedError(t("noPlayableEpisodes"));
 
   drafts.sort((left, right) => left.published_at.localeCompare(right.published_at));
   const recent = drafts.slice(-MAX_EPISODES_PER_FEED);

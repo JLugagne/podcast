@@ -3,8 +3,11 @@
 An installable web app (PWA / WebAPK) that plays podcasts from their RSS feed.
 It is a static site published on GitHub Pages: there is no server and no database.
 
-- **Add a podcast** by pasting the URL of its RSS feed. The feed is parsed in the
-  browser and the subscription (show, episodes) is saved in `localStorage`.
+- **Add a podcast** with the "Add podcast" button, then paste the URL of its
+  RSS feed. The feed is parsed in the browser and the subscription (show,
+  episodes) is saved in `localStorage`.
+- **Languages**: the interface follows the browser language (English or French)
+  and can be switched from the header.
 - **Share a library**: "Share library" copies a link that lists every feed
   (`?feed=<url>&feed=<url>`). Opening it subscribes to all of them at once and
   skips the feeds already in the library.
@@ -63,6 +66,7 @@ web/player/src/lib/feed.ts        RSS parsing
 web/player/src/lib/library.ts     subscriptions in localStorage, feed fetching
 web/player/src/lib/subscriptionLinks.ts  shared links that add several feeds
 web/player/src/lib/downloads.ts   offline audio (Cache API)
+web/player/src/i18n/              interface strings in English and French
 web/player/public/                manifest, service worker, icons
 ```
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { errorMessage } from "../api/client";
 import { useImportSubscriptions } from "../hooks/library";
-import { pluralize } from "../lib/format";
+import { useI18n } from "../i18n";
 import { feedUrlsFromSearch } from "../lib/subscriptionLinks";
 import { ErrorBanner } from "./ErrorBanner";
 
@@ -11,6 +11,7 @@ import { ErrorBanner } from "./ErrorBanner";
  * app opens with one. Feeds already in the library are skipped.
  */
 export function FeedLinkImport() {
+  const { t } = useI18n();
   const location = useLocation();
   const navigate = useNavigate();
   const importFeeds = useImportSubscriptions();
@@ -35,20 +36,15 @@ export function FeedLinkImport() {
           …
         </span>
         <div className="banner-body">
-          <span className="banner-title">Adding podcasts from this link…</span>
-          <span>{pluralize(urls.length, "feed")} to check.</span>
+          <span className="banner-title">{t("importingTitle")}</span>
+          <span>{t("feedsToCheck", { count: urls.length })}</span>
         </div>
       </div>
     );
   }
 
   if (importFeeds.isError) {
-    return (
-      <ErrorBanner
-        title="Could not add the podcasts from this link"
-        message={errorMessage(importFeeds.error)}
-      />
-    );
+    return <ErrorBanner title={t("importFailedTitle")} message={errorMessage(importFeeds.error)} />;
   }
 
   const outcome = importFeeds.data;
@@ -56,13 +52,13 @@ export function FeedLinkImport() {
 
   const parts: string[] = [];
   if (outcome.added.length > 0) {
-    parts.push(`${pluralize(outcome.added.length, "podcast")} added`);
+    parts.push(t("importAdded", { count: outcome.added.length }));
   }
   if (outcome.skipped.length > 0) {
-    parts.push(`${pluralize(outcome.skipped.length, "podcast")} already in your library`);
+    parts.push(t("importSkipped", { count: outcome.skipped.length }));
   }
   if (outcome.failed.length > 0) {
-    parts.push(`${pluralize(outcome.failed.length, "podcast")} could not be added`);
+    parts.push(t("importFailed", { count: outcome.failed.length }));
   }
   const failed = outcome.failed.length > 0;
 

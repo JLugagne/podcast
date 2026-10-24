@@ -11,6 +11,7 @@ import { SleepTimerMenu } from "../components/SleepTimerMenu";
 import { SpeedMenu } from "../components/SpeedMenu";
 import { useCatalog } from "../hooks/catalog";
 import { progressByEpisode, useProgressList } from "../hooks/listening";
+import { useI18n } from "../i18n";
 import { formatDuration } from "../lib/format";
 import { isEditableTarget, isInteractiveTarget } from "../lib/keyboard";
 import { usePlayback } from "../playback/PlaybackProvider";
@@ -38,6 +39,7 @@ function PlayerArtwork({ imageUrl, seriesTitle, accentColor, coverUrl }: PlayerA
 }
 
 export function PlayerPage() {
+  const { t } = useI18n();
   const playback = usePlayback();
   const {
     episode,
@@ -65,9 +67,9 @@ export function PlayerPage() {
       ? `▶ ${episode.title} — ${series.title}`
       : `${episode.title} — ${series.title}`;
     return () => {
-      document.title = "Podcasts";
+      document.title = t("appName");
     };
-  }, [episode, series, playing]);
+  }, [episode, series, playing, t]);
 
   useEffect(() => {
     if (!episode) return;
@@ -126,16 +128,16 @@ export function PlayerPage() {
       <header className="player-top">
         <button type="button" className="icon-button icon-button-surface" onClick={closePlayer}>
           <Icon name="close" size={22} />
-          <span className="sr-only">Close player</span>
+          <span className="sr-only">{t("closePlayer")}</span>
         </button>
-        <span className="player-top-label">Now playing</span>
+        <span className="player-top-label">{t("nowPlaying")}</span>
         <span className="player-top-spacer" aria-hidden="true" />
       </header>
 
-      {error ? <ErrorBanner title="Playback problem" message={error} /> : null}
+      {error ? <ErrorBanner title={t("playbackProblem")} message={error} /> : null}
 
       <div className="player-layout">
-        <section className="player-main" aria-label="Player">
+        <section className="player-main" aria-label={t("playerRegion")}>
           <PlayerArtwork
             key={currentChapter?.image_url ?? "cover"}
             imageUrl={currentChapter?.image_url ?? null}
@@ -151,8 +153,8 @@ export function PlayerPage() {
             <h1 className="player-episode-title">{episode.title}</h1>
             <p className="player-chapter-count">
               {chapters.length > 0 && chapterIndex >= 0
-                ? `Chapter ${chapterIndex + 1} of ${chapters.length}`
-                : "No chapters"}
+                ? t("chapterOf", { current: chapterIndex + 1, total: chapters.length })
+                : t("noChapters")}
             </p>
             <h2 className="player-chapter-title">{currentChapter?.title ?? episode.title}</h2>
             {currentChapter?.url ? (
@@ -163,7 +165,7 @@ export function PlayerPage() {
                 rel="noreferrer"
               >
                 <Icon name="external" size={16} />
-                <span>Open chapter link</span>
+                <span>{t("openChapterLink")}</span>
               </a>
             ) : null}
           </div>
@@ -177,27 +179,22 @@ export function PlayerPage() {
 
           <div className="player-controls">
             <IconButton
-              label="Previous chapter"
+              label={t("previousChapter")}
               icon="previous"
               size="md"
               onClick={previousChapter}
             />
-            <IconButton label="Back 15 seconds" icon="rewind" size="md" onClick={() => skip(-15)} />
+            <IconButton label={t("back15")} icon="rewind" size="md" onClick={() => skip(-15)} />
             <IconButton
-              label={playing ? "Pause" : "Play"}
+              label={playing ? t("pause") : t("play")}
               icon={playing ? "pause" : "play"}
               variant="primary"
               size="lg"
               className="play-button"
               onClick={toggle}
             />
-            <IconButton
-              label="Forward 30 seconds"
-              icon="forward"
-              size="md"
-              onClick={() => skip(30)}
-            />
-            <IconButton label="Next chapter" icon="next" size="md" onClick={nextChapter} />
+            <IconButton label={t("forward30")} icon="forward" size="md" onClick={() => skip(30)} />
+            <IconButton label={t("nextChapter")} icon="next" size="md" onClick={nextChapter} />
           </div>
 
           <div className="player-options">
@@ -206,14 +203,14 @@ export function PlayerPage() {
           </div>
         </section>
 
-        <aside className="player-side" aria-label="Chapters and queue">
+        <aside className="player-side" aria-label={t("chaptersAndQueue")}>
           <section className="player-side-section" aria-labelledby="chapters-heading">
             <div className="section-heading">
               <h2 id="chapters-heading" className="section-title">
-                Chapters
+                {t("chaptersHeading")}
               </h2>
               <button type="button" className="btn btn-secondary btn-small" onClick={restart}>
-                Restart from the beginning
+                {t("restartFromBeginning")}
               </button>
             </div>
             <ChapterList
@@ -227,7 +224,7 @@ export function PlayerPage() {
           <section className="player-side-section" aria-labelledby="up-next-heading">
             <div className="section-heading">
               <h2 id="up-next-heading" className="section-title">
-                Up next
+                {t("upNext")}
               </h2>
             </div>
             <label className="toggle-row">
@@ -236,21 +233,23 @@ export function PlayerPage() {
                 checked={autoPlayNext}
                 onChange={(event) => setAutoPlayNext(event.target.checked)}
               />
-              <span>Autoplay next episode</span>
+              <span>{t("autoplayNext")}</span>
             </label>
             {nextEpisode ? (
               <button
                 type="button"
                 className="up-next-card"
-                aria-label={`Play next: ${nextEpisode.title}`}
+                aria-label={t("playNext", { title: nextEpisode.title })}
                 onClick={playNext}
               >
-                <span className="up-next-kicker">Episode {nextEpisode.number}</span>
+                <span className="up-next-kicker">
+                  {t("episodeLine", { number: nextEpisode.number })}
+                </span>
                 <span className="up-next-title">{nextEpisode.title}</span>
                 <span className="up-next-meta">{formatDuration(nextEpisode.duration_seconds)}</span>
               </button>
             ) : (
-              <p className="muted text-small">This is the latest episode of the series.</p>
+              <p className="muted text-small">{t("latestEpisode")}</p>
             )}
           </section>
         </aside>

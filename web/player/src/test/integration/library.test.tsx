@@ -10,7 +10,8 @@ describe("library", () => {
     renderApp("/");
 
     expect(await screen.findByText("Nothing to listen to yet")).toBeInTheDocument();
-    expect(screen.getByText(/Paste the RSS feed URL of a podcast/)).toBeInTheDocument();
+    expect(screen.getByText("Add a podcast to start listening.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Podcast feed URL")).not.toBeInTheDocument();
   });
 
   it("lists series with their episode and unplayed counts", async () => {
@@ -74,10 +75,11 @@ describe("library", () => {
     expect(await screen.findByRole("heading", { name: "The long one" })).toBeInTheDocument();
   });
 
-  it("adds a podcast from its feed URL and keeps it in localStorage", async () => {
+  it("adds a podcast from its feed URL", async () => {
     server.use(http.get("https://feeds.example/show.xml", () => rss("Fresh Show")));
 
     const { user } = renderApp("/");
+    await user.click(await screen.findByRole("button", { name: "Add podcast" }));
     await user.type(
       await screen.findByLabelText("Podcast feed URL"),
       "https://feeds.example/show.xml",
@@ -93,6 +95,7 @@ describe("library", () => {
     server.use(http.get("https://feeds.example/bad.xml", () => HttpResponse.text("<html></html>")));
 
     const { user } = renderApp("/");
+    await user.click(await screen.findByRole("button", { name: "Add podcast" }));
     await user.type(
       await screen.findByLabelText("Podcast feed URL"),
       "https://feeds.example/bad.xml",
@@ -101,6 +104,20 @@ describe("library", () => {
 
     expect(await screen.findByText("Could not add this podcast")).toBeInTheDocument();
     expect(window.localStorage.getItem("podcast.player.library")).toBeNull();
+  });
+
+  it("switches the interface to French", async () => {
+    const series = seedSeries({ slug: "alpha-show", title: "Alpha Show" });
+    seedEpisode(series.slug, { id: "episode-1" });
+
+    const { user } = renderApp("/");
+    await user.selectOptions(await screen.findByLabelText("Language"), "fr");
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Écouter" })).toBeInTheDocument();
+    expect(screen.getByText("Vos podcasts, enregistrés sur cet appareil.")).toBeInTheDocument();
+    expect(screen.getByText(/1 épisode/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ajouter un podcast" })).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe("fr");
   });
 
   it("removes a podcast from its page", async () => {

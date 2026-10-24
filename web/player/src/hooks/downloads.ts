@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { Episode } from "../api/types";
+import { t } from "../i18n";
 import { downloadEpisode, listDownloaded, removeDownload } from "../lib/downloads";
 
 export interface DownloadState {
@@ -45,7 +46,7 @@ export async function startDownload(episode: Episode): Promise<void> {
       errors: withEntry(
         state.errors,
         episode.id,
-        error instanceof Error ? error.message : "The download failed.",
+        error instanceof Error ? error.message : t("downloadFailed"),
       ),
     });
   } finally {

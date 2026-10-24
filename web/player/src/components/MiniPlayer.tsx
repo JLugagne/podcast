@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router";
+import { useI18n } from "../i18n";
 import { usePlayback } from "../playback/PlaybackProvider";
 import { ChapterBar } from "./ChapterBar";
 import { CoverTile } from "./CoverTile";
@@ -6,6 +7,7 @@ import { IconButton } from "./IconButton";
 
 /** Playback bar docked at the bottom of every screen except the full player. */
 export function MiniPlayer() {
+  const { t } = useI18n();
   const {
     episode,
     series,
@@ -23,11 +25,11 @@ export function MiniPlayer() {
   if (!episode || !series || location.pathname === "/play") return null;
 
   const chapterLine = currentChapter
-    ? `Chapter ${chapterIndex + 1}: ${currentChapter.title}`
+    ? t("chapterLine", { number: chapterIndex + 1, title: currentChapter.title })
     : series.title;
 
   return (
-    <section className="mini-player" aria-label="Mini player">
+    <section className="mini-player" aria-label={t("miniPlayer")}>
       <ChapterBar
         chapters={chapters}
         duration={duration}
@@ -36,7 +38,11 @@ export function MiniPlayer() {
         className="mini-player-progress"
       />
       <div className="mini-player-inner">
-        <Link className="mini-player-link" to="/play" aria-label={`Open player: ${episode.title}`}>
+        <Link
+          className="mini-player-link"
+          to="/play"
+          aria-label={t("openPlayer", { title: episode.title })}
+        >
           <CoverTile
             title={series.title}
             accentColor={series.accent_color}
@@ -50,18 +56,13 @@ export function MiniPlayer() {
         </Link>
         <div className="mini-player-actions">
           <IconButton
-            label={playing ? "Pause" : "Play"}
+            label={playing ? t("pause") : t("play")}
             icon={playing ? "pause" : "play"}
             variant="primary"
             size="md"
             onClick={toggle}
           />
-          <IconButton
-            label="Forward 30 seconds"
-            icon="forward"
-            size="md"
-            onClick={() => skip(30)}
-          />
+          <IconButton label={t("forward30")} icon="forward" size="md" onClick={() => skip(30)} />
         </div>
       </div>
     </section>

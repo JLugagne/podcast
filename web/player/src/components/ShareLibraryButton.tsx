@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "../i18n";
 import { listSubscriptions } from "../lib/library";
 import { subscriptionLink } from "../lib/subscriptionLinks";
 import { Icon } from "./Icon";
 
 /** Copies a link that subscribes the reader to every feed of this library. */
 export function ShareLibraryButton() {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [link, setLink] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -29,12 +31,12 @@ export function ShareLibraryButton() {
     <div className="share-library">
       <button type="button" className="btn btn-secondary btn-small" onClick={() => void share()}>
         <Icon name={copied ? "check" : "copy"} size={16} />
-        <span>{copied ? "Link copied" : "Share library"}</span>
+        <span>{copied ? t("linkCopied") : t("shareLibrary")}</span>
       </button>
       {link ? (
         <input
           className="add-form-input share-library-link"
-          aria-label="Share link"
+          aria-label={t("shareLinkLabel")}
           readOnly
           value={link}
           onFocus={(event) => event.currentTarget.select()}

@@ -1,9 +1,11 @@
+import { useI18n } from "../i18n";
 import {
   formatCountdown,
   SLEEP_TIMER_OPTIONS,
   type SleepTimer,
   type SleepTimerOption,
   sleepTimerLabel,
+  sleepTimerOptionLabel,
 } from "../lib/sleepTimer";
 import { usePlayback } from "../playback/PlaybackProvider";
 import { Icon } from "./Icon";
@@ -22,17 +24,19 @@ function isSelected(option: SleepTimerOption, timer: SleepTimer): boolean {
   }
 }
 
-function triggerText(timer: SleepTimer, remaining: number) {
-  if (timer.kind === "minutes") return formatCountdown(remaining);
-  if (timer.kind === "chapter") return "Chapter";
-  if (timer.kind === "episode") return "Episode";
-  return "Sleep";
-}
-
 export function SleepTimerMenu() {
+  const { t } = useI18n();
   const { sleepTimer, sleepRemaining, setSleepTimerOption } = usePlayback();
   const label = sleepTimerLabel(sleepTimer, sleepRemaining);
   const remaining = sleepTimer.kind === "minutes" ? (sleepRemaining ?? sleepTimer.minutes * 60) : 0;
+  const triggerLabel =
+    sleepTimer.kind === "minutes"
+      ? formatCountdown(remaining)
+      : sleepTimer.kind === "chapter"
+        ? t("chapterWord")
+        : sleepTimer.kind === "episode"
+          ? t("episodeWord")
+          : t("sleep");
 
   return (
     <Menu
@@ -41,27 +45,27 @@ export function SleepTimerMenu() {
       trigger={
         <>
           <Icon name="moon" size={18} />
-          <span>{triggerText(sleepTimer, remaining)}</span>
+          <span>{triggerLabel}</span>
         </>
       }
     >
       {(close) =>
         SLEEP_TIMER_OPTIONS.map((option) => (
           <button
-            key={option.value}
+            key={option}
             type="button"
             role="menuitemradio"
-            aria-checked={isSelected(option.value, sleepTimer)}
+            aria-checked={isSelected(option, sleepTimer)}
             className="menu-item"
             onClick={() => {
-              setSleepTimerOption(option.value);
+              setSleepTimerOption(option);
               close();
             }}
           >
             <span className="menu-check" aria-hidden="true">
-              {isSelected(option.value, sleepTimer) ? <Icon name="check" size={16} /> : null}
+              {isSelected(option, sleepTimer) ? <Icon name="check" size={16} /> : null}
             </span>
-            <span>{option.label}</span>
+            <span>{sleepTimerOptionLabel(option)}</span>
           </button>
         ))
       }

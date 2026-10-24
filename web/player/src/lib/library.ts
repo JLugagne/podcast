@@ -1,4 +1,5 @@
 import { errorMessage } from "../api/errors";
+import { t } from "../i18n";
 import { FeedError, parseFeed, type StoredSeries } from "./feed";
 import { readStorage, writeStorage } from "./storage";
 
@@ -54,10 +55,8 @@ export async function fetchFeedText(feedUrl: string): Promise<string> {
       // Fall through to the error below.
     }
   }
-  if (direct) throw new FeedError(`The feed server answered ${direct.status}.`);
-  throw new FeedError(
-    "Could not download this feed. The server may block browser requests (CORS); set a CORS proxy in the settings.",
-  );
+  if (direct) throw new FeedError(t("feedServerAnswered", { status: direct.status }));
+  throw new FeedError(t("feedDownloadFailed"));
 }
 
 function normalizeUrl(raw: string): string {
@@ -65,10 +64,10 @@ function normalizeUrl(raw: string): string {
   try {
     url = new URL(raw.trim());
   } catch {
-    throw new FeedError("Enter a valid feed URL.");
+    throw new FeedError(t("invalidFeedUrl"));
   }
   if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new FeedError("Enter a valid feed URL.");
+    throw new FeedError(t("invalidFeedUrl"));
   }
   return url.toString();
 }
@@ -77,13 +76,13 @@ export async function addSubscription(rawUrl: string): Promise<StoredSeries> {
   const feedUrl = normalizeUrl(rawUrl);
   const list = listSubscriptions();
   if (list.some((item) => item.feed_url === feedUrl)) {
-    throw new FeedError("This podcast is already in your library.");
+    throw new FeedError(t("alreadyInLibrary"));
   }
   const series = parseFeed(await fetchFeedText(feedUrl), feedUrl);
   try {
     saveSubscriptions([...list, series]);
   } catch {
-    throw new FeedError("Could not save the library (storage is full or unavailable).");
+    throw new FeedError(t("couldNotSaveLibrary"));
   }
   return series;
 }
@@ -146,7 +145,7 @@ export async function importSubscriptions(rawUrls: string[]): Promise<ImportOutc
     try {
       saveSubscriptions(list);
     } catch {
-      throw new FeedError("Could not save the library (storage is full or unavailable).");
+      throw new FeedError(t("couldNotSaveLibrary"));
     }
   }
   return outcome;
@@ -155,7 +154,7 @@ export async function importSubscriptions(rawUrls: string[]): Promise<ImportOutc
 export async function refreshSubscription(slug: string): Promise<StoredSeries> {
   const list = listSubscriptions();
   const current = list.find((item) => item.slug === slug);
-  if (!current) throw new FeedError("This podcast is not in your library.");
+  if (!current) throw new FeedError(t("notInLibrary"));
   const next = parseFeed(await fetchFeedText(current.feed_url), current.feed_url);
   saveSubscriptions(list.map((item) => (item.slug === slug ? next : item)));
   return next;

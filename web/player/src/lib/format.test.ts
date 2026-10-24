@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDuration, formatMinutesLeft, initials, pluralize } from "./format";
+import { formatDuration, formatMinutesLeft, initials } from "./format";
 
 describe("formatDuration", () => {
   it("formats positions under an hour as m:ss", () => {
@@ -42,13 +42,5 @@ describe("initials", () => {
     expect(initials("the long form podcast")).toBe("TP");
     expect(initials("Solo")).toBe("S");
     expect(initials("   ")).toBe("?");
-  });
-});
-
-describe("pluralize", () => {
-  it("uses the singular for one item", () => {
-    expect(pluralize(1, "episode")).toBe("1 episode");
-    expect(pluralize(2, "episode")).toBe("2 episodes");
-    expect(pluralize(0, "chapter")).toBe("0 chapters");
   });
 });

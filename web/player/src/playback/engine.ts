@@ -1,3 +1,5 @@
+import { t } from "../i18n";
+
 export type MediaEngineEvent =
   | { type: "time"; currentTime: number; duration: number }
   | { type: "duration"; duration: number }
@@ -28,7 +30,7 @@ export interface MediaEngine {
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
-  return "The audio could not be played.";
+  return t("audioCouldNotPlay");
 }
 
 export class HtmlAudioEngine implements MediaEngine {
@@ -172,6 +174,6 @@ export class HtmlAudioEngine implements MediaEngine {
   };
 
   private handleError = (): void => {
-    this.emit({ type: "error", message: "The audio could not be played." });
+    this.emit({ type: "error", message: t("audioCouldNotPlay") });
   };
 }

@@ -1,10 +1,12 @@
+import { t } from "../i18n";
+
 const SKELETON_KEYS = ["skeleton-1", "skeleton-2", "skeleton-3", "skeleton-4", "skeleton-5"];
 
-export function LoadingBlock({ label = "Loading…" }: { label?: string }) {
+export function LoadingBlock({ label }: { label?: string }) {
   return (
     <div className="loading-block" role="status">
       <span className="spinner" aria-hidden="true" />
-      <span>{label}</span>
+      <span>{label ?? t("loading")}</span>
     </div>
   );
 }

@@ -1,14 +1,16 @@
+import { useI18n } from "../i18n";
 import { usePlayback } from "../playback/PlaybackProvider";
 import { formatRate, PLAYBACK_RATES } from "../playback/rates";
 import { Icon } from "./Icon";
 import { Menu } from "./Menu";
 
 export function SpeedMenu() {
+  const { t } = useI18n();
   const { rate, setRate } = usePlayback();
 
   return (
     <Menu
-      label={`Playback speed: ${formatRate(rate)}`}
+      label={t("playbackSpeed", { rate: formatRate(rate) })}
       className="menu-inline"
       trigger={
         <>
