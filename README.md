@@ -16,6 +16,13 @@ It is a static site published on GitHub Pages: there is no server and no databas
 - **Chapters** are read from the `podcast:chapters` JSON document of an episode
   when the feed provides one.
 
+## Privacy
+
+Nothing is sent to anyone. There is no account, no server and no analytics:
+nobody needs to know what you want to listen to. Subscriptions, listening
+progress and downloads stay on your device, and feeds and audio are fetched
+directly from the hosts that publish them.
+
 ## CORS
 
 The browser can only read a feed or download audio when the server sends CORS
