@@ -37,7 +37,7 @@ jobs:
       - name: Build site
         working-directory: web/player
         env:
-          BASE_PATH: ${{ endsWith(github.repository, '.github.io') && '/' || format('/{0}/', github.event.repository.name) }}
+          BASE_PATH: /
         run: npm run build
 
       - uses: actions/configure-pages@v6

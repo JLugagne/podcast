@@ -41,10 +41,10 @@ npm run icons        # regenerate the PWA icons in public/
 ## Deployment
 
 `.github/workflows/pages.yml` runs the tests, builds the site and publishes
-`web/player/dist` with the official Pages actions. For a project site served
-under `https://<user>.github.io/<repo>/`, the workflow builds with
-`BASE_PATH=/<repo>/`. The build writes `404.html` (a copy of `index.html`) so
-deep links resolve, and `.nojekyll`.
+`web/player/dist` with the official Pages actions. The site is served from the
+custom domain `player.ecoutes.stream`, so it is built with `BASE_PATH=/`. The
+build writes `404.html` (a copy of `index.html`) so deep links resolve, and
+`.nojekyll`.
 
 ## Layout
 
