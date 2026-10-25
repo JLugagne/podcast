@@ -522,14 +522,19 @@
 .episode-list.is-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  /* Every card gets the size of the largest one, whatever the length of the
+     titles and of the metadata. */
+  grid-auto-rows: 1fr;
   gap: var(--space-4);
-  align-items: start;
+  align-items: stretch;
 }
 
 .episode-list.is-grid .episode-row {
   position: relative;
   display: grid;
+  /* Square artwork, then a body filling the rest of the card. */
   grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr;
   align-items: start;
   gap: var(--space-2);
   padding: 0 0 var(--space-2);
@@ -567,11 +572,23 @@
 .episode-list.is-grid .episode-row-body {
   grid-column: 1;
   grid-row: 2;
+  align-self: stretch;
   padding: 0 var(--space-2) 0 var(--space-3);
 }
 
 .episode-list.is-grid .episode-row-title {
   font-size: 0.9rem;
+}
+
+/* Reserve the two lines a title may use so the metadata starts at the same
+   height on every card. */
+.episode-list.is-grid .episode-row-title-button {
+  min-height: 2.4em;
+}
+
+/* The progress bar stays pinned to the bottom of the card. */
+.episode-list.is-grid .progress-thin {
+  margin-top: auto;
 }
 
 .episode-list.is-grid .episode-row > .menu {

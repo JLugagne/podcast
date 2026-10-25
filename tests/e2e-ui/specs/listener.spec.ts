@@ -142,6 +142,25 @@ test("listener journey", async ({ page, context }) => {
       "The same episodes shown as artwork cards after switching the view to grid; the choice is remembered on the device.",
     );
 
+    // A title or a line of metadata wrapping must not make its card larger
+    // than the others.
+    await page.evaluate(() => {
+      const rows = document.querySelectorAll<HTMLElement>(".episode-list.is-grid .episode-row");
+      const last = rows[rows.length - 1];
+      const title = last?.querySelector<HTMLElement>(".episode-row-title-button");
+      if (title) title.textContent = "Representation and reality of attention";
+      const meta = last?.querySelector<HTMLElement>(".episode-row-meta");
+      if (meta?.firstElementChild) meta.firstElementChild.textContent = "1:05:57 representation";
+    });
+    const cardSizes = await list.getByRole("listitem").evaluateAll((items) =>
+      items.map((item) => {
+        const box = item.getBoundingClientRect();
+        return { width: Math.round(box.width), height: Math.round(box.height) };
+      }),
+    );
+    expect(new Set(cardSizes.map((size) => size.width)).size).toBe(1);
+    expect(new Set(cardSizes.map((size) => size.height)).size).toBe(1);
+
     await page.getByRole("button", { name: "List" }).click();
     await expect(list).not.toHaveClass(/is-grid/);
   });
