@@ -20,6 +20,7 @@ export class FeedError extends Error {
 
 const ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd";
 const PODCAST_NS = "https://podcastindex.org/namespace/1.0";
+const MEDIA_NS = "http://search.yahoo.com/mrss/";
 
 /** Small stable hash, used to build ids from feed URLs and GUIDs. */
 export function shortHash(value: string): string {
@@ -126,6 +127,16 @@ function parseDate(raw: string): string {
   return Number.isNaN(time) ? new Date(0).toISOString() : new Date(time).toISOString();
 }
 
+/** Episode artwork, from `itunes:image` or the Media RSS thumbnail. */
+function itemImageUrl(item: Element): string | null {
+  return (
+    httpsOnly(childElement(item, "image", ITUNES_NS)?.getAttribute("href")) ??
+    httpsOnly(childElement(item, "image")?.getAttribute("href")) ??
+    httpsOnly(childText(childElement(item, "image") ?? item, "url")) ??
+    httpsOnly(childElement(item, "thumbnail", MEDIA_NS)?.getAttribute("url"))
+  );
+}
+
 /**
  * Parses an RSS 2.0 podcast feed. Episodes are numbered oldest first (or by
  * `itunes:episode` when every item carries one) and ordered ascending, which is
@@ -150,6 +161,7 @@ export function parseFeed(xml: string, feedUrl: string): StoredSeries {
     published_at: string;
     duration_seconds: number;
     audio_url: string;
+    image_url: string | null;
     chapters_url: string | null;
     itunes_number: number | null;
   }
@@ -169,6 +181,7 @@ export function parseFeed(xml: string, feedUrl: string): StoredSeries {
       published_at: parseDate(childText(item, "pubDate")),
       duration_seconds: parseDuration(childText(item, "duration", ITUNES_NS)),
       audio_url: audioUrl,
+      image_url: itemImageUrl(item),
       chapters_url: httpsOnly(childElement(item, "chapters", PODCAST_NS)?.getAttribute("url")),
       itunes_number: Number.isFinite(number) && number > 0 ? number : null,
     });
@@ -198,6 +211,7 @@ export function parseFeed(xml: string, feedUrl: string): StoredSeries {
       duration_seconds: draft.duration_seconds,
       chapter_count: 0,
       audio_url: draft.audio_url,
+      image_url: draft.image_url,
       chapters_url: draft.chapters_url,
     };
   });

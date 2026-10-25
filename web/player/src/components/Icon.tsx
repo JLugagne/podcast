@@ -17,7 +17,8 @@ export type IconName =
   | "copy"
   | "external"
   | "rss"
-  | "list";
+  | "list"
+  | "grid";
 
 const ICONS: Record<IconName, ReactNode> = {
   play: <path d="M8.5 5.8v12.4L19 12z" fill="currentColor" stroke="none" />,
@@ -98,6 +99,14 @@ const ICONS: Record<IconName, ReactNode> = {
       <circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none" />
       <circle cx="4.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
       <circle cx="4.5" cy="18" r="1.2" fill="currentColor" stroke="none" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1.4" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.4" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.4" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.4" />
     </>
   ),
 };

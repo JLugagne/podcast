@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { errorMessage } from "../api/client";
 import type { Episode, PlaybackSeries, Progress } from "../api/types";
@@ -16,6 +17,7 @@ import {
   useProgressList,
 } from "../hooks/listening";
 import { useI18n } from "../i18n";
+import { type EpisodeView, readEpisodeView, writeEpisodeView } from "../lib/episodeView";
 import { formatDuration } from "../lib/format";
 import { usePlayback } from "../playback/PlaybackProvider";
 
@@ -31,6 +33,12 @@ export function SeriesPage() {
   const downloads = useDownloads();
   const refresh = useRefreshPodcast();
   const remove = useRemovePodcast();
+  const [view, setView] = useState<EpisodeView>(readEpisodeView);
+
+  const changeView = (next: EpisodeView) => {
+    setView(next);
+    writeEpisodeView(next);
+  };
 
   if (catalogQuery.isPending) {
     return (
@@ -192,6 +200,28 @@ export function SeriesPage() {
           <h2 id="episodes-heading" className="section-title">
             {t("episodesHeading")}
           </h2>
+          {episodes.length > 0 ? (
+            <div className="episode-view-toggle">
+              <button
+                type="button"
+                className={view === "list" ? "is-active" : undefined}
+                aria-pressed={view === "list"}
+                aria-label={t("listView")}
+                onClick={() => changeView("list")}
+              >
+                <Icon name="list" size={18} />
+              </button>
+              <button
+                type="button"
+                className={view === "grid" ? "is-active" : undefined}
+                aria-pressed={view === "grid"}
+                aria-label={t("gridView")}
+                onClick={() => changeView("grid")}
+              >
+                <Icon name="grid" size={18} />
+              </button>
+            </div>
+          ) : null}
         </div>
         {episodes.length === 0 ? (
           <div className="empty-state">
@@ -199,7 +229,10 @@ export function SeriesPage() {
             <p>{t("noPlayableEpisodes")}</p>
           </div>
         ) : (
-          <ul className="episode-list" aria-label={t("episodesOf", { title: series.title })}>
+          <ul
+            className={view === "grid" ? "episode-list is-grid" : "episode-list"}
+            aria-label={t("episodesOf", { title: series.title })}
+          >
             {episodes.map((episode) => (
               <EpisodeRow
                 key={episode.id}
@@ -207,6 +240,9 @@ export function SeriesPage() {
                 progress={progress.get(episode.id)}
                 isCurrent={playback.episode?.id === episode.id}
                 playing={playback.episode?.id === episode.id && playback.playing}
+                view={view}
+                accentColor={series.accent_color}
+                seriesCoverUrl={series.cover_url}
                 onTogglePlay={() => handleToggle(episode)}
                 onOpenPlayer={() => openPlayer(episode, savedPosition(episode))}
                 onMarkPlayed={() => markPlayed.mutate(episode)}

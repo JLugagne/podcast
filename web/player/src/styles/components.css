@@ -45,6 +45,12 @@
   font-size: clamp(2.2rem, 12vw, 4.5rem);
 }
 
+.cover-tile-fill {
+  width: 100%;
+  border-radius: 0;
+  font-size: clamp(1.6rem, 6vw, 2.6rem);
+}
+
 /* Icon buttons */
 .icon-button {
   display: inline-grid;
@@ -384,6 +390,44 @@
   text-align: right;
 }
 
+/* The artwork is the play/pause control of the row. */
+.episode-row-cover {
+  position: relative;
+  display: block;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.episode-row-cover:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.episode-row-cover-play {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  background: rgba(10, 12, 18, 0.85);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  transition: transform 120ms ease;
+}
+
+.episode-row-cover:hover .episode-row-cover-play {
+  transform: scale(1.08);
+}
+
 .episode-row-body {
   display: flex;
   flex-direction: column;
@@ -442,6 +486,99 @@
 
 .progress-thin-block {
   margin: 0.35rem 0 0.15rem;
+}
+
+/* Episode view toggle */
+.episode-view-toggle {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.episode-view-toggle button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.episode-view-toggle button.is-active {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Grid view: the same rows become artwork cards. */
+.episode-list.is-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.episode-list.is-grid .episode-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+  padding: 0 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.episode-list.is-grid .episode-row.is-current {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+
+.episode-list.is-grid .episode-row-cover {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  width: 100%;
+  border-radius: 0;
+}
+
+.episode-list.is-grid .episode-row-number {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 1;
+  width: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(8, 10, 16, 0.72);
+  color: var(--text);
+  pointer-events: none;
+}
+
+.episode-list.is-grid .episode-row-body {
+  grid-column: 1;
+  grid-row: 2;
+  padding: 0 var(--space-2) 0 var(--space-3);
+}
+
+.episode-list.is-grid .episode-row-title {
+  font-size: 0.9rem;
+}
+
+.episode-list.is-grid .episode-row > .menu {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: center;
+  margin-right: 4px;
 }
 
 /* Chapter bar */

@@ -27,6 +27,8 @@ export interface Episode {
   duration_seconds: number;
   chapter_count: number;
   audio_url: string;
+  /** Episode artwork, when the feed gives one that differs from the series cover. */
+  image_url?: string | null;
   /** Podcasting 2.0 chapters document, fetched lazily when the episode plays. */
   chapters_url?: string | null;
 }

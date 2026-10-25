@@ -126,6 +126,26 @@ test("listener journey", async ({ page, context }) => {
     );
   });
 
+  await test.step("switch the episode list to a grid", async () => {
+    const list = page.getByRole("list", { name: `Episodes of ${seriesTitle}` });
+    await page.getByRole("button", { name: "Grid" }).click();
+    await expect(list).toHaveClass(/is-grid/);
+    await expect(page.getByRole("button", { name: "Grid" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(list.getByRole("listitem")).toHaveCount(3);
+
+    await shots.capture(
+      "series-grid",
+      "Series grid view",
+      "The same episodes shown as artwork cards after switching the view to grid; the choice is remembered on the device.",
+    );
+
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(list).not.toHaveClass(/is-grid/);
+  });
+
   await test.step("play episode 1", async () => {
     await page.getByRole("button", { name: `Play episode 1: ${episodeTitles[0]}` }).click();
     const miniPlayer = page.getByRole("region", { name: "Mini player" });

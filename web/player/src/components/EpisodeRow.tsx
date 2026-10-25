@@ -1,8 +1,9 @@
 import type { Episode, Progress } from "../api/types";
 import { useI18n } from "../i18n";
+import type { EpisodeView } from "../lib/episodeView";
 import { formatDuration, formatMinutesLeft } from "../lib/format";
+import { CoverTile } from "./CoverTile";
 import { Icon } from "./Icon";
-import { IconButton } from "./IconButton";
 import { Menu } from "./Menu";
 
 export interface EpisodeRowProps {
@@ -10,6 +11,11 @@ export interface EpisodeRowProps {
   progress?: Progress;
   isCurrent: boolean;
   playing: boolean;
+  /** Layout used by the series page; the same row is styled as a list or a card. */
+  view: EpisodeView;
+  accentColor: string;
+  /** Series artwork, used when the episode has none of its own. */
+  seriesCoverUrl: string | null;
   onTogglePlay: () => void;
   onOpenPlayer: () => void;
   onMarkPlayed: () => void;
@@ -23,12 +29,15 @@ export interface EpisodeRowProps {
   onRemoveDownload: () => void;
 }
 
-/** One row of the episode list of a series. */
+/** One row of the episode list of a series, with its artwork. */
 export function EpisodeRow({
   episode,
   progress,
   isCurrent,
   playing,
+  view,
+  accentColor,
+  seriesCoverUrl,
   onTogglePlay,
   onOpenPlayer,
   onMarkPlayed,
@@ -56,17 +65,25 @@ export function EpisodeRow({
     : t("playEpisode", { number: episode.number, title: episode.title });
 
   return (
-    <li className={["episode-row", isCurrent ? "is-current" : ""].filter(Boolean).join(" ")}>
+    <li
+      className={["episode-row", `episode-row-${view}`, isCurrent ? "is-current" : ""]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <span className="episode-row-number" aria-hidden="true">
         {episode.number}
       </span>
-      <IconButton
-        label={label}
-        icon={playing ? "pause" : "play"}
-        variant={isCurrent ? "primary" : "surface"}
-        size="md"
-        onClick={onTogglePlay}
-      />
+      <button type="button" className="episode-row-cover" aria-label={label} onClick={onTogglePlay}>
+        <CoverTile
+          title={episode.title}
+          accentColor={accentColor}
+          src={episode.image_url ?? seriesCoverUrl}
+          size={view === "grid" ? "fill" : "sm"}
+        />
+        <span className="episode-row-cover-play" aria-hidden="true">
+          <Icon name={playing ? "pause" : "play"} size={14} />
+        </span>
+      </button>
       <div className="episode-row-body">
         <h3 className="episode-row-title">
           <button type="button" className="episode-row-title-button" onClick={onOpenPlayer}>

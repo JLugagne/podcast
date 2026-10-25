@@ -2,6 +2,7 @@ const PREFIX = "podcast.player.";
 
 export const PLAYBACK_RATE_KEY = "rate";
 export const AUTO_PLAY_NEXT_KEY = "auto-play-next";
+export const EPISODE_VIEW_KEY = "episode-view";
 
 export function readStorage(key: string): string | null {
   try {

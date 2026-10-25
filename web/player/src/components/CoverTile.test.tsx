@@ -8,6 +8,7 @@ describe("CoverTile", () => {
     ["md", "cover-tile-md"],
     ["lg", "cover-tile-lg"],
     ["xl", "cover-tile-xl"],
+    ["fill", "cover-tile-fill"],
   ] as const)("applies the %s size class", (size, className) => {
     const { container } = render(
       <CoverTile title="Harbour Lights" accentColor="#F2A541" size={size} />,

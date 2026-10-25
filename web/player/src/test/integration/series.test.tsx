@@ -40,8 +40,8 @@ function seedSeriesWithEpisodes() {
   return { series, first, second, third };
 }
 
-function episodeRows() {
-  const list = screen.getByRole("list", { name: "Episodes of Deep Dive" });
+function episodeRows(title = "Deep Dive") {
+  const list = screen.getByRole("list", { name: `Episodes of ${title}` });
   return within(list).getAllByRole("listitem");
 }
 
@@ -140,6 +140,62 @@ describe("series page", () => {
 
     await waitFor(() => expect(storedProgress()[first.id]).toBeUndefined());
     await waitFor(() => expect(within(episodeRows()[0]).getByText("New")).toBeInTheDocument());
+  });
+
+  it("shows episode artwork with the series cover as fallback", async () => {
+    const series = seedSeries({
+      slug: "art-show",
+      title: "Art Show",
+      cover_url: "https://covers.test/series.jpg",
+    });
+    seedEpisode(series.slug, {
+      id: "with-art",
+      number: 1,
+      title: "With art",
+      image_url: "https://covers.test/episode.jpg",
+    });
+    seedEpisode(series.slug, { id: "no-art", number: 2, title: "No art" });
+
+    renderApp("/series/art-show");
+    await waitFor(() => expect(episodeRows("Art Show")).toHaveLength(2));
+
+    const images = Array.from(document.querySelectorAll(".episode-row-cover img"));
+    expect(images.map((image) => image.getAttribute("src"))).toEqual([
+      "https://covers.test/episode.jpg",
+      "https://covers.test/series.jpg",
+    ]);
+  });
+
+  it("switches episodes between list and grid and remembers the choice", async () => {
+    seedSeriesWithEpisodes();
+    const { user } = renderApp("/series/deep-dive");
+    await waitFor(() => expect(episodeRows()).toHaveLength(3));
+
+    expect(screen.getByRole("list", { name: "Episodes of Deep Dive" })).not.toHaveClass("is-grid");
+    expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(screen.getByRole("button", { name: "Grid" }));
+
+    expect(screen.getByRole("list", { name: "Episodes of Deep Dive" })).toHaveClass("is-grid");
+    expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");
+    expect(episodeRows()).toHaveLength(3);
+    expect(window.localStorage.getItem("podcast.player.episode-view")).toBe("grid");
+
+    await user.click(screen.getByRole("button", { name: "List" }));
+
+    expect(screen.getByRole("list", { name: "Episodes of Deep Dive" })).not.toHaveClass("is-grid");
+    expect(window.localStorage.getItem("podcast.player.episode-view")).toBe("list");
+  });
+
+  it("opens a series in the remembered view", async () => {
+    seedSeriesWithEpisodes();
+    window.localStorage.setItem("podcast.player.episode-view", "grid");
+
+    renderApp("/series/deep-dive");
+
+    expect(await screen.findByRole("list", { name: "Episodes of Deep Dive" })).toHaveClass(
+      "is-grid",
+    );
   });
 
   it("shows a not found state for an unknown series", async () => {

@@ -6,7 +6,7 @@ export interface CoverTileProps {
   title: string;
   accentColor: string;
   src?: string | null;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "fill";
 }
 
 /**
@@ -19,7 +19,7 @@ export function CoverTile({ title, accentColor, src, size = "md" }: CoverTilePro
   const classes = `cover-tile cover-tile-${size}`;
 
   return (
-    <div
+    <span
       className={classes}
       style={{ backgroundColor: accentColor, color: contrastText(accentColor) }}
       aria-hidden="true"
@@ -29,6 +29,6 @@ export function CoverTile({ title, accentColor, src, size = "md" }: CoverTilePro
       ) : (
         <span>{initials(title)}</span>
       )}
-    </div>
+    </span>
   );
 }

@@ -21,6 +21,9 @@ It is a static site published on GitHub Pages: there is no server and no databas
   web manifest and service worker.
 - **Chapters** are read from the `podcast:chapters` JSON document of an episode
   when the feed provides one.
+- **Episode artwork** comes from `itunes:image` (or the Media RSS thumbnail) and
+  falls back to the series cover. A series page lists its episodes as a list or
+  as artwork cards; the chosen view is remembered on the device.
 
 ## Privacy
 
